@@ -147,3 +147,9 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Generated SDK assets and browser reports
+public/arcgis-assets/
+test-results/
+playwright-report/
+*.tsbuildinfo
