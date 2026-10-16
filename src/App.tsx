@@ -73,7 +73,7 @@ export default function App() {
           {
             id: instance.fires.id,
             title: "Historic fire locations",
-            visible: true,
+            visible: instance.fires.visible,
             kind: "6 REFERENCE POINTS",
           },
           {

@@ -68,6 +68,7 @@ export function createGIS(container: HTMLDivElement) {
   const fires = new GeoJSONLayer({
     url: `${location.origin}/data/california-fires.geojson`,
     title: "Historic fire reference points",
+    visible: false,
     renderer: {
       type: "simple",
       symbol: {

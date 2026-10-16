@@ -8,10 +8,9 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
-  await expect(page.getByLabel("Hide Historic fire locations")).toBeVisible();
-  await page.getByLabel("Hide Historic fire locations").click();
   await expect(page.getByLabel("Show Historic fire locations")).toBeVisible();
   await page.getByLabel("Show Historic fire locations").click();
+  await expect(page.getByLabel("Hide Historic fire locations")).toBeVisible();
   await page.getByRole("button", { name: "Fire explorer" }).click();
   await page.getByLabel("Search historic fires").fill("Camp");
   await page.getByRole("button", { name: "Camp Fire Butte · 2018" }).click();
@@ -80,6 +79,7 @@ test("inspects a fire popup and completes map measurements and a drawing", async
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await page.getByLabel("Show Historic fire locations").click();
   await page.getByRole("button", { name: "Fire explorer" }).click();
   await page.getByRole("button", { name: "Camp Fire Butte · 2018" }).click();
   // Wait for the SDK's animated navigation to settle before clicking the centered feature.
