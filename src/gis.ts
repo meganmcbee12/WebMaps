@@ -12,6 +12,8 @@ import * as geodesicUtils from "@arcgis/core/geometry/support/geodesicUtils";
 import Point from "@arcgis/core/geometry/Point";
 export const fireService =
   "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0";
+export const usaWildfiresService =
+  "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0";
 export const locations = [
   {
     name: "Park Fire",
@@ -93,6 +95,14 @@ export function createGIS(container: HTMLDivElement) {
       ],
     },
   });
+  const usaWildfires = new FeatureLayer({
+    url: usaWildfiresService,
+    title: "USA Wildfires",
+    visible: true,
+    outFields: ["*"],
+    refreshInterval: 5,
+    popupEnabled: true,
+  });
   const drawings = new GraphicsLayer({ title: "My drawings" });
   const context = new GeoJSONLayer({
     url: `${location.origin}/data/western-states.geojson`,
@@ -121,7 +131,10 @@ export function createGIS(container: HTMLDivElement) {
       },
     ],
   });
-  const map = new Map({ basemap: "osm", layers: [context, fires, drawings] });
+  const map = new Map({
+    basemap: "osm",
+    layers: [context, fires, usaWildfires, drawings],
+  });
   const view = new MapView({
     container,
     map,
@@ -174,6 +187,7 @@ export function createGIS(container: HTMLDivElement) {
     map,
     view,
     fires,
+    usaWildfires,
     drawings,
     tool,
     clearTool,

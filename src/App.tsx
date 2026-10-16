@@ -55,6 +55,17 @@ export default function App() {
     if (!container.current) return;
     const instance = createGIS(container.current);
     gis.current = instance;
+    instance.usaWildfires
+      .load()
+      .then(() => {
+        instance.usaWildfires.popupTemplate =
+          instance.usaWildfires.createPopupTemplate();
+      })
+      .catch(() =>
+        setError(
+          "USA Wildfires could not load. The public service may be unavailable; refresh to try again.",
+        ),
+      );
     instance.view
       .when(() => {
         setReady(true);
@@ -70,6 +81,12 @@ export default function App() {
             title: "My drawings",
             visible: true,
             kind: "SKETCH LAYER",
+          },
+          {
+            id: instance.usaWildfires.id,
+            title: "USA Wildfires",
+            visible: true,
+            kind: "PUBLIC FEATURE SERVICE",
           },
         ]);
       })

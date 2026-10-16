@@ -15,6 +15,7 @@ Open `http://localhost:5173` in a browser on your own computer. In a remote deve
 
 ## Explore
 
+- **USA Wildfires** is visible automatically on opening the map, using [this public feature layer](https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0). Its original service symbology is retained, its attributes are available in popups, and it refreshes every five minutes. Coverage and freshness are determined by the provider. The map still opens on California; zoom out to explore the national data.
 - Pan, zoom, and switch Streets (OpenStreetMap), Satellite, or Terrain basemaps.
 - Toggle layers in the sidebar; add public ArcGIS layer URLs ending in `/FeatureServer/<number>`, a public GeoJSON URL, or a local GeoJSON file. Remote services must permit anonymous access and CORS; additional cloud network domains may need approval.
 - Select **Fire explorer** to search six historical fires and navigate to a reference location. Click map features in Explore mode to inspect their attributes in a popup.
