@@ -142,6 +142,7 @@ export function createGIS(container: HTMLDivElement) {
     center: [-120, 37.6],
     zoom: 6,
     constraints: { minZoom: 3 },
+    popupEnabled: false,
     popup: {
       dockEnabled: true,
       dockOptions: { position: "bottom-right", breakpoint: false },

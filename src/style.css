@@ -1016,3 +1016,66 @@ a:focus-visible {
   min-width: 0;
   max-width: 100%;
 }
+
+/* Keep map panels out of the center, with accessible ways to reopen them. */
+.sidebar {
+  overflow-x: hidden;
+}
+.map-tools {
+  left: auto;
+  right: 23px;
+  transform: none;
+}
+.basemap-heading .panel-close {
+  margin-left: auto;
+  padding: 2px;
+  background: transparent;
+  color: #75816a;
+}
+.panel-reopen {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: white;
+  color: #526747;
+  border: 1px solid #e0e4d9;
+  border-radius: 7px;
+  box-shadow: 0 3px 16px #293a2415;
+  font-size: 11px;
+}
+.tools-reopen {
+  right: 23px;
+  top: 25px;
+}
+.basemaps-reopen {
+  right: 23px;
+  bottom: 58px;
+}
+.historic-toggle {
+  margin-top: 20px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  border: 1px solid #dce2d4;
+  padding: 10px;
+  border-radius: 5px;
+  background: white;
+  color: #63715a;
+  font-size: 11px;
+}
+@media (max-width: 700px) {
+  .map-tools,
+  .tools-reopen {
+    right: 15px;
+    top: 68px;
+  }
+  .basemaps-reopen {
+    right: 15px;
+    bottom: 65px;
+  }
+}
+.collapse-toggle.is-collapsed ~ .map-panel .map-label {
+  left: 50px;
+}

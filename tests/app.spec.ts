@@ -8,6 +8,7 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
+  await page.getByRole("button", { name: "Fire explorer" }).click();
   await expect(page.getByLabel("Show Historic fire locations")).toBeVisible();
   await page.getByLabel("Show Historic fire locations").click();
   await expect(page.getByLabel("Hide Historic fire locations")).toBeVisible();
@@ -23,7 +24,10 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
   // Let the SDK's fire-location navigation finish before sending a map click.
   await page.waitForTimeout(1800);
   await page.getByLabel("Distance to historic fire").click();
-  await expect(page.locator(".map")).toHaveAttribute("data-tool-ready", "nearby");
+  await expect(page.locator(".map")).toHaveAttribute(
+    "data-tool-ready",
+    "nearby",
+  );
   await page.locator(".map").click({ position: { x: 350, y: 350 } });
   await expect(page.getByText(/mi to .* reference point/)).toBeVisible();
   await page.getByLabel("Measure distance", { exact: true }).click();
@@ -60,7 +64,7 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
 test("mobile sidebar and invalid import feedback", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await page.getByLabel("Collapse sidebar").click();
+  await page.getByLabel("Close sidebar").click();
   await expect(page.getByLabel("Open sidebar")).toBeVisible();
   await page.getByLabel("Open sidebar").click();
   await page.getByRole("button", { name: "Add a data layer" }).click();
@@ -79,8 +83,8 @@ test("inspects a fire popup and completes map measurements and a drawing", async
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
-  await page.getByLabel("Show Historic fire locations").click();
   await page.getByRole("button", { name: "Fire explorer" }).click();
+  await page.getByLabel("Show Historic fire locations").click();
   await page.getByRole("button", { name: "Camp Fire Butte · 2018" }).click();
   // Wait for the SDK's animated navigation to settle before clicking the centered feature.
   await page.waitForTimeout(1800);
@@ -94,14 +98,27 @@ test("inspects a fire popup and completes map measurements and a drawing", async
   await expect(map).toHaveAttribute("data-tool-ready", "distance");
   // GIS tools sample pointer positions on animation frames. Move, let the
   // view render, then click as a user would instead of teleporting clicks.
-  async function vertex(x:number,y:number,finish=false){
-    await page.mouse.move(box.x+x,box.y+y);
-    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
-    await page.mouse.click(box.x+x,box.y+y,{clickCount:finish?2:1,delay:150});
-    await page.evaluate(()=>new Promise<void>(resolve=>requestAnimationFrame(()=>requestAnimationFrame(()=>resolve()))));
+  async function vertex(x: number, y: number, finish = false) {
+    await page.mouse.move(box.x + x, box.y + y);
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await page.mouse.click(box.x + x, box.y + y, {
+      clickCount: finish ? 2 : 1,
+      delay: 150,
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
   }
-  await vertex(200,350);
-  await vertex(400,450,true);
+  await vertex(200, 350);
+  await vertex(400, 450, true);
   await expect(
     page
       .locator(".esri-distance-measurement-2d")
@@ -112,10 +129,10 @@ test("inspects a fire popup and completes map measurements and a drawing", async
   );
   await page.getByLabel("Measure area", { exact: true }).click();
   await expect(map).toHaveAttribute("data-tool-ready", "area");
-  await vertex(200,350);
-  await vertex(300,350);
-  await vertex(300,450);
-  await vertex(200,450,true);
+  await vertex(200, 350);
+  await vertex(300, 350);
+  await vertex(300, 450);
+  await vertex(200, 450, true);
   await expect(
     page
       .locator(".esri-area-measurement-2d")

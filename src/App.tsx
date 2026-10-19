@@ -4,7 +4,6 @@ import {
   Layers,
   Plus,
   Minus,
-  ChevronLeft,
   ChevronRight,
   Search,
   ArrowUpRight,
@@ -40,6 +39,9 @@ export default function App() {
   const [ready, setReady] = useState(false),
     [error, setError] = useState(""),
     [collapsed, setCollapsed] = useState(false),
+    [showBasemaps, setShowBasemaps] = useState(true),
+    [showTools, setShowTools] = useState(true),
+    [historicVisible, setHistoricVisible] = useState(false),
     [tab, setTab] = useState("layers"),
     [search, setSearch] = useState(""),
     [modal, setModal] = useState(false),
@@ -71,12 +73,6 @@ export default function App() {
         setReady(true);
         setRows([
           {
-            id: instance.fires.id,
-            title: "Historic fire locations",
-            visible: instance.fires.visible,
-            kind: "6 REFERENCE POINTS",
-          },
-          {
             id: instance.drawings.id,
             title: "My drawings",
             visible: true,
@@ -98,13 +94,54 @@ export default function App() {
           `${Math.abs(p.latitude ?? 0).toFixed(3)}° ${(p.latitude ?? 0) >= 0 ? "N" : "S"}  ${Math.abs(p.longitude ?? 0).toFixed(3)}° ${(p.longitude ?? 0) >= 0 ? "E" : "W"}`,
         );
     });
-    const click = instance.view.on("click", (e) => {
-      if (instance.view.container?.getAttribute("data-tool") === "nearby") {
+    const click = instance.view.on("click", async (e) => {
+      const mode = container.current?.getAttribute("data-tool");
+      if (mode === "nearby") {
         const p = e.mapPoint;
         if (p) {
           const n = nearestFire(p.longitude!, p.latitude!);
           setDistance(`${n.miles.toFixed(1)} mi to ${n.name} reference point`);
         }
+        return;
+      }
+      if (mode && mode !== "explore") return;
+      try {
+        const selectableLayers = instance.map.layers
+          .filter(
+            (layer) =>
+              (layer.type === "feature" || layer.type === "geojson") &&
+              "popupEnabled" in layer &&
+              layer.popupEnabled === true,
+          )
+          .toArray();
+        const result = await instance.view.hitTest(e, {
+          include: selectableLayers,
+        });
+        const hit = result.results.find((result) => result.type === "graphic");
+        if (!hit || hit.type !== "graphic" || !hit.graphic.geometry) return;
+        const geometry = hit.graphic.geometry;
+        const layer = hit.graphic.layer;
+        const isFire =
+          layer === instance.fires ||
+          layer === instance.usaWildfires ||
+          (layer && "url" in layer && layer.url === fireService);
+        const feature = hit.graphic.clone();
+        feature.popupTemplate = hit.graphic.getEffectivePopupTemplate(true);
+        instance.view.closePopup();
+        if (isFire)
+          await instance.view.goTo(
+            geometry.type === "point"
+              ? { target: geometry, zoom: Math.max(instance.view.zoom, 12) }
+              : geometry.extent?.expand(1.5) || geometry,
+          );
+        if (!instance.view.destroyed)
+          await instance.view.openPopup({
+            features: [feature],
+            location: hit.mapPoint || e.mapPoint,
+          });
+      } catch (error) {
+        if (error instanceof Error && error.name !== "AbortError")
+          console.warn("Fire selection unavailable", error);
       }
     });
     return () => {
@@ -118,7 +155,7 @@ export default function App() {
     setTool(value);
     setDistance("");
     if (gis.current) {
-      gis.current.view.popupEnabled = value === "explore";
+      gis.current.view.popupEnabled = false;
       if (value !== "explore") gis.current.view.closePopup();
     }
     container.current?.removeAttribute("data-tool-ready");
@@ -275,10 +312,8 @@ export default function App() {
                 <div className="layer-list">
                   {rows.map((row, i) => (
                     <div className="layer" key={row.id}>
-                      <span className={"layer-symbol symbol-" + i}>
-                        {i === 0 ? (
-                          <Flame size={18} />
-                        ) : i === 1 ? (
+                      <span className="layer-symbol">
+                        {row.kind === "SKETCH LAYER" ? (
                           <Pentagon size={18} />
                         ) : (
                           <Layers size={18} />
@@ -321,8 +356,6 @@ export default function App() {
                   <Plus size={17} /> Add a data layer
                 </button>
                 <div className="legend">
-                  <span className="legend-dot" />
-                  Historic fire reference location
                   <span className="legend-line" />
                   Your drawings
                 </div>
@@ -350,6 +383,18 @@ export default function App() {
               </>
             ) : (
               <>
+                <button
+                  className="historic-toggle"
+                  aria-label={`${historicVisible ? "Hide" : "Show"} Historic fire locations`}
+                  onClick={() => {
+                    const visible = !historicVisible;
+                    if (gis.current) gis.current.fires.visible = visible;
+                    setHistoricVisible(visible);
+                  }}
+                >
+                  {historicVisible ? <Eye size={16} /> : <EyeOff size={16} />}{" "}
+                  Historic reference points
+                </button>
                 <div className="search">
                   <Search size={16} />
                   <input
@@ -420,10 +465,11 @@ export default function App() {
         </aside>
         <button
           className={"collapse-toggle " + (collapsed ? "is-collapsed" : "")}
-          aria-label={collapsed ? "Open sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
+          aria-expanded={!collapsed}
           onClick={() => setCollapsed(!collapsed)}
         >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
+          {collapsed ? <Layers size={16} /> : <X size={16} />}
         </button>
         <section className="map-panel" aria-label="Interactive California map">
           <div className="map" ref={container} />
@@ -432,30 +478,54 @@ export default function App() {
             <strong>California</strong>
             <span>36.7783° N, 119.4179° W</span>
           </div>
-          <div className="map-tools" role="toolbar" aria-label="Map tools">
-            {[
-              { id: "explore", icon: MousePointer2, label: "Explore features" },
-              { id: "draw", icon: Pentagon, label: "Draw on map" },
-              { id: "distance", icon: Ruler, label: "Measure distance" },
-              { id: "area", icon: MapIcon, label: "Measure area" },
-              {
-                id: "nearby",
-                icon: LocateFixed,
-                label: "Distance to historic fire",
-              },
-            ].map((t) => (
+          {showTools ? (
+            <div className="map-tools" role="toolbar" aria-label="Map tools">
+              {[
+                {
+                  id: "explore",
+                  icon: MousePointer2,
+                  label: "Explore features",
+                },
+                { id: "draw", icon: Pentagon, label: "Draw on map" },
+                { id: "distance", icon: Ruler, label: "Measure distance" },
+                { id: "area", icon: MapIcon, label: "Measure area" },
+                {
+                  id: "nearby",
+                  icon: LocateFixed,
+                  label: "Distance to historic fire",
+                },
+              ].map((t) => (
+                <button
+                  disabled={!ready}
+                  key={t.id}
+                  className={tool === t.id ? "active" : ""}
+                  title={t.label}
+                  aria-label={t.label}
+                  onClick={() => chooseTool(t.id)}
+                >
+                  <t.icon size={19} />
+                </button>
+              ))}
               <button
-                disabled={!ready}
-                key={t.id}
-                className={tool === t.id ? "active" : ""}
-                title={t.label}
-                aria-label={t.label}
-                onClick={() => chooseTool(t.id)}
+                aria-label="Close tools"
+                title="Close tools"
+                onClick={() => {
+                  setShowTools(false);
+                  void chooseTool("explore");
+                }}
               >
-                <t.icon size={19} />
+                <X size={18} />
               </button>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <button
+              className="panel-reopen tools-reopen"
+              aria-label="Open tools"
+              onClick={() => setShowTools(true)}
+            >
+              <Ruler size={17} /> Tools
+            </button>
+          )}
           {(tool === "nearby" || distance) && (
             <div className="tool-hint">
               <LocateFixed size={17} />
@@ -496,47 +566,69 @@ export default function App() {
               <Navigation size={18} />
             </button>
           </div>
-          <div className="basemaps">
-            <div className="basemap-heading">
-              <Layers size={13} /> BASEMAP
-            </div>
-            <div>
-              {[
-                { id: "osm", label: "Streets", cls: "streets", icon: MapIcon },
-                {
-                  id: "satellite",
-                  label: "Satellite",
-                  cls: "satellite",
-                  icon: Globe,
-                },
-                {
-                  id: "topo-vector",
-                  label: "Terrain",
-                  cls: "terrain",
-                  icon: Mountain,
-                },
-              ].map((b) => (
+          {showBasemaps ? (
+            <div className="basemaps" aria-label="Basemap options">
+              <div className="basemap-heading">
+                <Layers size={13} /> BASEMAP
                 <button
-                  key={b.id}
-                  className={basemap === b.id ? "selected" : ""}
-                  onClick={() => {
-                    setBasemap(b.id);
-                    if (gis.current) gis.current.map.basemap = b.id as any;
-                  }}
+                  className="panel-close"
+                  aria-label="Close basemaps"
+                  onClick={() => setShowBasemaps(false)}
                 >
-                  <span className={"basemap-thumb " + b.cls}>
-                    <b.icon size={21} />
-                    {basemap === b.id && (
-                      <i>
-                        <Check size={10} />
-                      </i>
-                    )}
-                  </span>
-                  {b.label}
+                  <X size={15} />
                 </button>
-              ))}
+              </div>
+              <div>
+                {[
+                  {
+                    id: "osm",
+                    label: "Streets",
+                    cls: "streets",
+                    icon: MapIcon,
+                  },
+                  {
+                    id: "satellite",
+                    label: "Satellite",
+                    cls: "satellite",
+                    icon: Globe,
+                  },
+                  {
+                    id: "topo-vector",
+                    label: "Terrain",
+                    cls: "terrain",
+                    icon: Mountain,
+                  },
+                ].map((b) => (
+                  <button
+                    key={b.id}
+                    className={basemap === b.id ? "selected" : ""}
+                    onClick={() => {
+                      setBasemap(b.id);
+                      if (gis.current) gis.current.map.basemap = b.id as any;
+                    }}
+                  >
+                    <span className={"basemap-thumb " + b.cls}>
+                      <b.icon size={21} />
+                      {basemap === b.id && (
+                        <i>
+                          <Check size={10} />
+                        </i>
+                      )}
+                    </span>
+                    {b.label}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <button
+              className="panel-reopen basemaps-reopen"
+              aria-label="Open basemaps"
+              onClick={() => setShowBasemaps(true)}
+            >
+              <Layers size={17} /> Basemaps
+            </button>
+          )}
           {!ready && !error && (
             <div className="loading-map">
               <LoaderCircle className="spin" size={22} /> Preparing your
