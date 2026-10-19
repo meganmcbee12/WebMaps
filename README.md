@@ -60,3 +60,17 @@ For a straightforward first deployment, connect your GitHub repository to Netlif
 - `tests/`: browser workflow checks.
 
 Possible next tools: actual point-to-perimeter distance, historical perimeter filtering, address search, export/share, and persistent saved maps. These are not implemented in this version.
+
+## Homepage and daily CAL FIRE dashboard
+
+The website opens on the overview dashboard at `/`. The interactive map is at `/map`, with a return link to the overview. Vercel's SPA rewrite for `/map` is included in `vercel.json`; other static hosts need an equivalent fallback. The map sidebar's close button and California coordinates live inside the pane rather than on its scrollbar. The logo no longer has a subtitle.
+
+Dashboard figures are read from `public/data/calfire-summary.json`. No example totals are published: until the first successful source refresh, cards show an unavailable state and link to CAL FIRE. Older verified figures are retained when a refresh fails; the homepage flags snapshots older than 36 hours. The displayed timestamp means when Fire Atlas successfully retrieved the summary, not CAL FIRE's original incident-update time. These are the provider's statewide summary figures, not a count of currently active fires.
+
+- `npm run data:update` fetches and validates the public CAL FIRE incidents HTML. A failure exits nonzero and leaves the last saved snapshot untouched.
+- `npm run data:update -- --browser` renders the official page in Chromium before reading its counters. This is the scheduled job's mode, so JavaScript counters are populated before extraction. It requires Playwright's Chromium (`npx playwright install --with-deps chromium`).
+- `npm run build` also attempts an HTML refresh. If CAL FIRE cannot be reached or the page format is unrecognized, the build continues with the last saved snapshot or the explicit unavailable state.
+- `.github/workflows/refresh-calfire.yml` runs on the initial script/workflow push to `main`, once daily at 15:00 UTC, and on manual dispatch from GitHub Actions. Scheduled runs can be delayed by GitHub. The workflow commits only fully validated figures; the connected Vercel project then redeploys. No third-party API key or hosting cron plan is needed. GitHub Actions must be enabled and permitted to write repository contents.
+- `npm run test:data` tests extraction, animated-counter targets, missing fields, and placeholder rejection using fixtures. Browser tests cover the dashboard, its missing/stale states, navigation, and sidebar placement.
+
+Source: https://www.fire.ca.gov/incidents. If CAL FIRE changes its markup, the job deliberately fails rather than publishing guessed totals. Inspect the failed GitHub Actions run, update the parser in `scripts/lib/calfire.mjs`, and rerun the workflow. Source access and a successful real refresh must be verified separately from fixture tests; the cloud workspace may require `www.fire.ca.gov` to be allowed in its network settings.

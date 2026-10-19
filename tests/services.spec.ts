@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 test("loads the real public NIFC feature service and satellite tiles", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 30000,
   });
@@ -38,7 +38,7 @@ test("shows USA Wildfires by default and requests its feature data", async ({
       r.url().includes("USA_Wildfires_v1/FeatureServer/0/query?") &&
       r.status() === 200,
   );
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Hide USA Wildfires", exact: true }),

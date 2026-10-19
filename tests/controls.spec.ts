@@ -3,7 +3,7 @@ test("closes and reopens panels with tools on the right and no historic legend",
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await expect(page.locator(".layer-list")).not.toContainText("Historic");
   await expect(page.locator(".legend")).not.toContainText("Historic");
@@ -46,7 +46,7 @@ test("clicking a fire zooms to it and preserves its popup", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await page.getByRole("button", { name: "Fire explorer" }).click();
   await page.getByLabel("Show Historic fire locations").click();

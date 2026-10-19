@@ -4,7 +4,7 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
@@ -63,7 +63,7 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
 });
 test("mobile sidebar and invalid import feedback", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/");
+  await page.goto("/map");
   await page.getByLabel("Close sidebar").click();
   await expect(page.getByLabel("Open sidebar")).toBeVisible();
   await page.getByLabel("Open sidebar").click();
@@ -81,7 +81,7 @@ test("inspects a fire popup and completes map measurements and a drawing", async
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/");
+  await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await page.getByRole("button", { name: "Fire explorer" }).click();
   await page.getByLabel("Show Historic fire locations").click();

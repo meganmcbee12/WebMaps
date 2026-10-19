@@ -1,0 +1,39 @@
+name: Refresh CAL FIRE dashboard
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/lib/calfire.mjs"
+      - "scripts/update-calfire.mjs"
+      - ".github/workflows/refresh-calfire.yml"
+  schedule:
+    - cron: "0 15 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: calfire-dashboard-refresh
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install browser for CAL FIRE’s rendered counters
+        run: npx playwright install --with-deps chromium
+      - name: Fetch and validate CAL FIRE figures
+        run: npm run data:update -- --browser
+      - name: Save verified daily snapshot
+        run: |
+          if ! git diff --quiet -- public/data/calfire-summary.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add public/data/calfire-summary.json
+            git commit -m "Refresh verified CAL FIRE dashboard figures"
+            git push
+          fi

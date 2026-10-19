@@ -9,12 +9,15 @@
     "preview": "vite preview --host 0.0.0.0",
     "test": "playwright test",
     "predev": "node scripts/copy-assets.mjs",
-    "prebuild": "node scripts/copy-assets.mjs"
+    "prebuild": "node scripts/copy-assets.mjs && node scripts/update-calfire.mjs --allow-stale",
+    "data:update": "node scripts/update-calfire.mjs",
+    "test:data": "node --test scripts/lib/calfire.test.mjs"
   },
   "dependencies": {
     "@arcgis/core": "^4.34.8",
     "@fontsource/dm-sans": "^5.3.0",
     "@fontsource/manrope": "^5.3.0",
+    "cheerio": "^1.2.0",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"

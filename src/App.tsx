@@ -238,13 +238,12 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <a className="brand" href="./">
+        <a className="brand" href="/">
           <span className="brand-mark">
             <Flame size={25} />
           </span>
           <span>
             fire<span className="brand-light">atlas</span>
-            <small>CALIFORNIA EXPLORER</small>
           </span>
         </a>
         <div className="header-center">
@@ -253,6 +252,9 @@ export default function App() {
           <span className="divider" />
           Wildfire intelligence, in context
         </div>
+        <a className="map-home-link" href="/">
+          Overview
+        </a>
         <a
           className="source-link"
           href="https://www.fire.ca.gov/incidents"
@@ -265,6 +267,21 @@ export default function App() {
       <main>
         <aside className={collapsed ? "sidebar collapsed" : "sidebar"}>
           <div className="sidebar-inner">
+            <div className="sidebar-topline">
+              <span className="eyebrow">MAP WORKSPACE</span>
+              <button
+                className="sidebar-close icon-button"
+                aria-label="Close sidebar"
+                onClick={() => setCollapsed(true)}
+              >
+                <X size={19} />
+              </button>
+            </div>
+            <div className="sidebar-region">
+              <span className="region-dot" />
+              <strong>California</strong>
+              <small>36.7783° N, 119.4179° W</small>
+            </div>
             <div className="eyebrow">THE GOLDEN STATE</div>
             <h1>
               A clearer view
@@ -463,21 +480,17 @@ export default function App() {
             </div>
           </div>
         </aside>
-        <button
-          className={"collapse-toggle " + (collapsed ? "is-collapsed" : "")}
-          aria-label={collapsed ? "Open sidebar" : "Close sidebar"}
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed(!collapsed)}
-        >
-          {collapsed ? <Layers size={16} /> : <X size={16} />}
-        </button>
+        {collapsed && (
+          <button
+            className="sidebar-reopen panel-reopen"
+            aria-label="Open sidebar"
+            onClick={() => setCollapsed(false)}
+          >
+            <Layers size={17} /> Layers
+          </button>
+        )}
         <section className="map-panel" aria-label="Interactive California map">
           <div className="map" ref={container} />
-          <div className="map-label">
-            <span className="region-dot" />
-            <strong>California</strong>
-            <span>36.7783° N, 119.4179° W</span>
-          </div>
           {showTools ? (
             <div className="map-tools" role="toolbar" aria-label="Map tools">
               {[
