@@ -22,8 +22,19 @@ test("homepage presents verified source figures and opens the map", async ({
   );
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "California fires. A clearer picture." }),
+    page.getByRole("heading", { name: "California fires" }),
   ).toBeVisible();
+  await expect(
+    page.getByText("A clearer picture.", { exact: true }),
+  ).toHaveCount(0);
+  await expect(page.locator(".dashboard-source-note")).toContainText(
+    "and is updated once a day.",
+  );
+  const heading = (await page
+    .getByRole("heading", { name: "California fires", exact: true })
+    .boundingBox())!;
+  const dashboard = (await page.locator(".summary-section").boundingBox())!;
+  expect(dashboard.x).toBeGreaterThan(heading.x + heading.width);
   await expect(page.getByText("495,544", { exact: true })).toBeVisible();
   await expect(page.getByText("338,615", { exact: true })).toBeVisible();
   await expect(page.getByText(/Last successful refresh:/)).toBeVisible();
@@ -46,7 +57,7 @@ test("homepage presents verified source figures and opens the map", async ({
   await expect(page.locator(".brand small")).toHaveCount(0);
   await page.getByRole("link", { name: "Overview", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "California fires. A clearer picture." }),
+    page.getByRole("heading", { name: "California fires" }),
   ).toBeVisible();
 });
 test("missing and stale data are clearly labeled and mobile homepage fits", async ({

@@ -2,15 +2,12 @@ import { useEffect, useState } from "react";
 import {
   Flame,
   ArrowUpRight,
-  ArrowRight,
   Activity,
   TreePine,
   Heart,
   House,
   Layers,
   Clock3,
-  Map as MapIcon,
-  ShieldCheck,
 } from "lucide-react";
 import "./dashboard.css";
 type Summary = {
@@ -106,119 +103,91 @@ export default function Dashboard() {
       <main className="dash-main">
         <section className="dash-hero">
           <div className="hero-copy">
-            <div className="dash-eyebrow">
-              <span /> THE CALIFORNIA FIRE PICTURE
-            </div>
-            <h1>
-              California fires.
-              <br />
-              <span>A clearer picture.</span>
-            </h1>
-            <p>
-              Understand the numbers. Explore the landscape.
-              <br />
-              Your starting point for wildfire information across the Golden
-              State.
-            </p>
+            <h1>California fires</h1>
             <div className="hero-actions">
               <a className="dash-primary" href="/map">
                 Explore the fire map <ArrowUpRight size={18} />
               </a>
-              <a
-                className="dash-text-link"
-                href="https://www.fire.ca.gov/incidents"
-                target="_blank"
-                rel="noreferrer"
-              >
-                View CAL FIRE incidents <ArrowRight size={15} />
-              </a>
-            </div>
-            <div className="hero-caption">
-              <ShieldCheck size={15} /> Public information. A statewide
-              perspective.
             </div>
           </div>
-          <div className="hero-landscape" aria-hidden="true">
-            <div className="landscape-grid" />
-            <span className="landscape-north">N ↑</span>
-            <img src="/california-outline.svg" alt="" />
-            <div className="landscape-title">
-              <span className="region-dot" /> CALIFORNIA{" "}
-              <small>THE GOLDEN STATE</small>
+          <section className="summary-section" aria-labelledby="summary-title">
+            <div className="summary-heading">
+              <div>
+                <span className="dash-kicker">STATEWIDE AT A GLANCE</span>
+                <h2 id="summary-title">California fire dashboard</h2>
+              </div>
+              <div className="update-badge">
+                <Clock3 size={14} /> Daily refresh · CAL FIRE
+              </div>
             </div>
-            <div className="landscape-coordinates">
-              36.7783° N &nbsp; 119.4179° W
+            <p className="summary-context">
+              Summary figures from CAL FIRE’s incidents page. These totals are
+              distinct from the number of fires currently burning.
+            </p>
+            <div className="stats-grid" aria-busy={loading}>
+              {cards.map((card) => (
+                <article className="stat-card" key={card.key}>
+                  <card.icon size={20} />
+                  <strong>
+                    {valid
+                      ? new Intl.NumberFormat("en-US").format(
+                          summary!.metrics![card.key],
+                        )
+                      : "—"}
+                  </strong>
+                  <h3>{card.label}</h3>
+                  <span>CAL FIRE summary</span>
+                </article>
+              ))}
             </div>
-            <div className="landscape-tag">
-              <MapIcon size={15} /> A landscape worth understanding
-            </div>
-          </div>
-        </section>
-        <section className="summary-section" aria-labelledby="summary-title">
-          <div className="summary-heading">
-            <div>
-              <span className="dash-kicker">STATEWIDE AT A GLANCE</span>
-              <h2 id="summary-title">Every number tells a story.</h2>
-            </div>
-            <div className="update-badge">
-              <Clock3 size={14} /> Daily refresh · CAL FIRE
-            </div>
-          </div>
-          <p className="summary-context">
-            Summary figures from CAL FIRE’s incidents page. These totals are
-            distinct from the number of fires currently burning.
-          </p>
-          <div className="stats-grid" aria-busy={loading}>
-            {cards.map((card) => (
-              <article className="stat-card" key={card.key}>
-                <card.icon size={20} />
-                <strong>
-                  {valid
-                    ? new Intl.NumberFormat("en-US").format(
-                        summary!.metrics![card.key],
-                      )
-                    : "—"}
-                </strong>
-                <h3>{card.label}</h3>
-                <span>CAL FIRE summary</span>
-              </article>
-            ))}
-          </div>
-          <div className="data-status">
-            <span>
-              <span
-                className={
-                  "data-dot " + (!valid ? "unavailable" : stale ? "stale" : "")
-                }
-              />
-              {loading
-                ? "Checking the latest published figures…"
-                : updated
-                  ? `Last successful refresh: ${updated}`
-                  : "Verified figures are not available yet."}
-            </span>
-            <a
-              href="https://www.fire.ca.gov/incidents"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Source: CAL FIRE incidents <ArrowUpRight size={12} />
-            </a>
-          </div>
-          {!loading && (!valid || stale) && (
-            <div className="data-notice" role="status">
-              {stale
-                ? "These are the last verified figures. The scheduled update is overdue."
-                : "We’re waiting for a successful refresh from CAL FIRE. No example figures are shown."}{" "}
+            <div className="data-status">
+              <span>
+                <span
+                  className={
+                    "data-dot " +
+                    (!valid ? "unavailable" : stale ? "stale" : "")
+                  }
+                />
+                {loading
+                  ? "Checking the latest published figures…"
+                  : updated
+                    ? `Last successful refresh: ${updated}`
+                    : "Verified figures are not available yet."}
+              </span>
               <a
                 href="https://www.fire.ca.gov/incidents"
                 target="_blank"
                 rel="noreferrer"
               >
-                Check the official page for the latest information ↗
+                Source: CAL FIRE incidents <ArrowUpRight size={12} />
               </a>
             </div>
-          )}
+            {!loading && (!valid || stale) && (
+              <div className="data-notice" role="status">
+                {stale
+                  ? "These are the last verified figures. The scheduled update is overdue."
+                  : "We’re waiting for a successful refresh from CAL FIRE. No example figures are shown."}{" "}
+                <a
+                  href="https://www.fire.ca.gov/incidents"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Check the official page for the latest information ↗
+                </a>
+              </div>
+            )}
+            <p className="dashboard-source-note">
+              This data comes directly from{" "}
+              <a
+                href="https://www.fire.ca.gov/incidents"
+                target="_blank"
+                rel="noreferrer"
+              >
+                CAL FIRE’s website
+              </a>{" "}
+              and is updated once a day.
+            </p>
+          </section>
         </section>
         <section className="dash-bottom">
           <article className="explore-card">
