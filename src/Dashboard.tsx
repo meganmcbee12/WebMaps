@@ -6,7 +6,6 @@ import {
   TreePine,
   Heart,
   House,
-  Layers,
   Clock3,
 } from "lucide-react";
 import "./dashboard.css";
@@ -91,19 +90,11 @@ export default function Dashboard() {
             Interactive map <ArrowUpRight size={15} />
           </a>
         </nav>
-        <a
-          className="dash-source"
-          href="https://www.fire.ca.gov/incidents"
-          target="_blank"
-          rel="noreferrer"
-        >
-          CAL FIRE <ArrowUpRight size={15} />
-        </a>
       </header>
       <main className="dash-main">
         <section className="dash-hero">
           <div className="hero-copy">
-            <h1>California fires</h1>
+            <h1>California Wildfire Explorer</h1>
             <div className="hero-actions">
               <a className="dash-primary" href="/map">
                 Explore the fire map <ArrowUpRight size={18} />
@@ -113,16 +104,14 @@ export default function Dashboard() {
           <section className="summary-section" aria-labelledby="summary-title">
             <div className="summary-heading">
               <div>
-                <span className="dash-kicker">STATEWIDE AT A GLANCE</span>
-                <h2 id="summary-title">California fire dashboard</h2>
+                <h2 id="summary-title">Statewide at a glance</h2>
               </div>
               <div className="update-badge">
                 <Clock3 size={14} /> Daily refresh · CAL FIRE
               </div>
             </div>
             <p className="summary-context">
-              Summary figures from CAL FIRE’s incidents page. These totals are
-              distinct from the number of fires currently burning.
+              CAL FIRE’s statewide totals—not a count of active fires.
             </p>
             <div className="stats-grid" aria-busy={loading}>
               {cards.map((card) => (
@@ -136,7 +125,6 @@ export default function Dashboard() {
                       : "—"}
                   </strong>
                   <h3>{card.label}</h3>
-                  <span>CAL FIRE summary</span>
                 </article>
               ))}
             </div>
@@ -159,7 +147,7 @@ export default function Dashboard() {
                 target="_blank"
                 rel="noreferrer"
               >
-                Source: CAL FIRE incidents <ArrowUpRight size={12} />
+                Source: CAL FIRE incidents <ArrowUpRight size={16} />
               </a>
             </div>
             {!loading && (!valid || stale) && (
@@ -188,49 +176,6 @@ export default function Dashboard() {
               and is updated once a day.
             </p>
           </section>
-        </section>
-        <section className="dash-bottom">
-          <article className="explore-card">
-            <span className="feature-icon">
-              <Layers size={22} />
-            </span>
-            <span className="dash-kicker">FROM NUMBERS TO PLACE</span>
-            <h2>Put the fire picture on the map.</h2>
-            <p>
-              Explore public wildfire layers, inspect individual fires, and
-              measure distances across California. Bring your own GIS data for a
-              closer look.
-            </p>
-            <a href="/map">
-              Open the interactive map <ArrowUpRight size={18} />
-            </a>
-          </article>
-          <article className="context-card">
-            <span className="dash-kicker">STAY INFORMED</span>
-            <h2>
-              Context matters.
-              <br />
-              Official updates come first.
-            </h2>
-            <p>
-              The dashboard refreshes on a daily schedule. Incident conditions
-              and evacuation guidance can change more quickly.
-            </p>
-            <a
-              href="https://www.fire.ca.gov/incidents"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Current incidents & official updates <ArrowUpRight size={16} />
-            </a>
-            <a
-              href="https://readyforwildfire.org/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Prepare your home and family <ArrowUpRight size={16} />
-            </a>
-          </article>
         </section>
         <footer className="dash-footer">
           <span>

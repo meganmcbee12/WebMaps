@@ -22,7 +22,7 @@ test("homepage presents verified source figures and opens the map", async ({
   );
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "California fires" }),
+    page.getByRole("heading", { name: "California Wildfire Explorer" }),
   ).toBeVisible();
   await expect(
     page.getByText("A clearer picture.", { exact: true }),
@@ -31,10 +31,28 @@ test("homepage presents verified source figures and opens the map", async ({
     "and is updated once a day.",
   );
   const heading = (await page
-    .getByRole("heading", { name: "California fires", exact: true })
+    .getByRole("heading", { name: "California Wildfire Explorer", exact: true })
     .boundingBox())!;
   const dashboard = (await page.locator(".summary-section").boundingBox())!;
   expect(dashboard.x).toBeGreaterThan(heading.x + heading.width);
+  await expect(
+    page.getByRole("heading", { name: "Statewide at a glance", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "California fire dashboard" }),
+  ).toHaveCount(0);
+  await expect(page.locator(".dash-bottom")).toHaveCount(0);
+  await expect(
+    page
+      .locator(".dash-header")
+      .getByRole("link", { name: "CAL FIRE", exact: true }),
+  ).toHaveCount(0);
+  expect(
+    await page
+      .locator(".stat-card h3")
+      .first()
+      .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+  ).toBeGreaterThanOrEqual(18);
   await expect(page.getByText("495,544", { exact: true })).toBeVisible();
   await expect(page.getByText("338,615", { exact: true })).toBeVisible();
   await expect(page.getByText(/Last successful refresh:/)).toBeVisible();
@@ -57,7 +75,7 @@ test("homepage presents verified source figures and opens the map", async ({
   await expect(page.locator(".brand small")).toHaveCount(0);
   await page.getByRole("link", { name: "Overview", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "California fires" }),
+    page.getByRole("heading", { name: "California Wildfire Explorer" }),
   ).toBeVisible();
 });
 test("missing and stale data are clearly labeled and mobile homepage fits", async ({
