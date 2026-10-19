@@ -10,10 +10,10 @@ import Measurement from "@arcgis/core/widgets/Measurement";
 import { whenOnce } from "@arcgis/core/core/reactiveUtils";
 import * as geodesicUtils from "@arcgis/core/geometry/support/geodesicUtils";
 import Point from "@arcgis/core/geometry/Point";
-export const fireService =
-  "https://services3.arcgis.com/T4QMspbfLg3qTGWY/arcgis/rest/services/WFIGS_Interagency_Perimeters_Current/FeatureServer/0";
-export const usaWildfiresService =
-  "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0";
+import { fireService } from "./sources";
+import { createEnvironmentLayers } from "./environment-layers";
+export { fireService, usaWildfiresService } from "./sources";
+import { usaWildfiresService } from "./sources";
 export const locations = [
   {
     name: "Park Fire",
@@ -132,9 +132,21 @@ export function createGIS(container: HTMLDivElement) {
       },
     ],
   });
+  const environment = createEnvironmentLayers();
   const map = new Map({
     basemap: "osm",
-    layers: [context, fires, usaWildfires, drawings],
+    layers: [
+      context,
+      fires,
+      environment.smoke,
+      environment.perimeters,
+      usaWildfires,
+      environment.air,
+      environment.wind,
+      environment.analysis,
+      environment.selection,
+      drawings,
+    ],
   });
   const view = new MapView({
     container,
@@ -191,6 +203,7 @@ export function createGIS(container: HTMLDivElement) {
     fires,
     usaWildfires,
     drawings,
+    environment,
     tool,
     clearTool,
     destroy() {

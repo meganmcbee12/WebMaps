@@ -67,6 +67,7 @@ test("mobile sidebar and invalid import feedback", async ({ page }) => {
   await page.getByLabel("Close sidebar").click();
   await expect(page.getByLabel("Open sidebar")).toBeVisible();
   await page.getByLabel("Open sidebar").click();
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
   await page.getByRole("button", { name: "Add a data layer" }).click();
   await page.locator("input[type=file]").setInputFiles({
     name: "bad.json",

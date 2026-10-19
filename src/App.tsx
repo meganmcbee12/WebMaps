@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import NearbyPanel from "./NearbyPanel";
 import {
   Flame,
   Layers,
@@ -42,7 +43,7 @@ export default function App() {
     [showBasemaps, setShowBasemaps] = useState(true),
     [showTools, setShowTools] = useState(true),
     [historicVisible, setHistoricVisible] = useState(false),
-    [tab, setTab] = useState("layers"),
+    [tab, setTab] = useState("nearby"),
     [search, setSearch] = useState(""),
     [modal, setModal] = useState(false),
     [url, setUrl] = useState(""),
@@ -109,9 +110,11 @@ export default function App() {
         const selectableLayers = instance.map.layers
           .filter(
             (layer) =>
-              (layer.type === "feature" || layer.type === "geojson") &&
-              "popupEnabled" in layer &&
-              layer.popupEnabled === true,
+              ((layer.type === "feature" || layer.type === "geojson") &&
+                "popupEnabled" in layer &&
+                layer.popupEnabled === true) ||
+              layer === instance.environment.air ||
+              layer === instance.environment.wind,
           )
           .toArray();
         const result = await instance.view.hitTest(e, {
@@ -295,6 +298,13 @@ export default function App() {
             </p>
             <div className="tabs">
               <button
+                className={tab === "nearby" ? "active" : ""}
+                onClick={() => setTab("nearby")}
+              >
+                <LocateFixed size={16} />
+                Nearby
+              </button>
+              <button
                 className={tab === "layers" ? "active" : ""}
                 onClick={() => setTab("layers")}
               >
@@ -347,7 +357,7 @@ export default function App() {
                       >
                         {row.visible ? <Eye size={16} /> : <EyeOff size={16} />}
                       </button>
-                      {i > 1 && (
+                      {row.kind === "PUBLIC DATA" && (
                         <button
                           className="icon-button"
                           aria-label={`Remove ${row.title}`}
@@ -398,7 +408,7 @@ export default function App() {
                   <small>Public service · Coverage and updates vary</small>
                 </div>
               </>
-            ) : (
+            ) : tab === "fires" ? (
               <>
                 <button
                   className="historic-toggle"
@@ -469,6 +479,11 @@ export default function App() {
                   </div>
                 )}
               </>
+            ) : null}
+            {ready && gis.current && (
+              <div hidden={tab !== "nearby"}>
+                <NearbyPanel gis={gis.current} chooseTool={chooseTool} />
+              </div>
             )}
             <div className="sidebar-footer">
               <Info size={15} />
@@ -538,6 +553,13 @@ export default function App() {
             >
               <Ruler size={17} /> Tools
             </button>
+          )}
+          {tool === "place" && (
+            <div className="tool-hint">
+              <LocateFixed size={17} />
+              Click a place in or near California to check reported fires and
+              conditions.
+            </div>
           )}
           {(tool === "nearby" || distance) && (
             <div className="tool-hint">

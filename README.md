@@ -25,6 +25,19 @@ Open `http://localhost:5173` in a browser on your own computer. In a remote deve
 - Use the target icon and click anywhere for geodesic distance in miles to the nearest of the six bundled historical reference points. This is **not distance to a fire perimeter**, active hazard, or evacuation zone.
 - **Add NIFC perimeters** loads the public national service. The built-in action filters the national service to California origin state (`attr_POOState = US-CA`); cross-border fire geometries can extend beyond California. Data availability and update timing are controlled by NIFC. Use Return to California to restore the initial map extent.
 
+## Nearby fires, smoke, air quality and wind
+
+The **Nearby** tab opens by default on the map. Search for a California town or full street address, or pick a location directly on the map. Choose a 10, 25, 50 or 100 mile radius. Selecting a nearby fire highlights and zooms to its reported boundary.
+
+- Distances are approximate spherical geodesic distances to WFIGS polygon edges, not centroids, historical reference points, driving distances, or estimates of fire arrival. Locations inside published polygons are labeled separately. Incidents without a reported perimeter are absent; an empty list does not mean no fires. Border incidents are included when their geometry is nearby.
+- **Reported fire perimeters** use the public NIFC WFIGS service and display provider update times.
+- **Satellite smoke** uses [NOAA/NESDIS HMS Smoke Detection](https://www.arcgis.com/home/item.html?id=ab7a5fbd76e3499296350eabf599fc63), with Light, Medium and Heavy plume polygons. HMS observes smoke aloft during daylight; it does not measure ground-level pollution. No plume returned at a point does not mean smoke-free air.
+- **Air quality** shows Open-Meteo / CAMS modeled US AQI and PM2.5, not monitoring-station readings. **Wind** shows Open-Meteo modeled 10 m speed, gusts and direction in mph. Cards show conditions for the selected location. Optional map layers show samples at 13 named California city centers, with an AQI legend and wind arrows pointing where wind is blowing. These samples are not continuous statewide coverage.
+- Air and wind are fetched on demand and cached for 15 minutes for the map samples. Cards show model valid times; older times are flagged. Provider failures show unavailable states, never invented zero values. Source links and CC BY 4.0 attribution are in the panel. Public Open-Meteo endpoints require no API key for this initial noncommercial use; review their terms before commercial publication.
+- Town search uses GeoNames through Open-Meteo. Full street addresses use the US Census Geocoder through `/api/geocode`, a small same-origin server endpoint. Searches go to the relevant provider; the application does not store search history or cache address responses. Picking a point requires no geocoding provider.
+
+Run `npm run test:gis` with Node 24 to test distance calculations, polygon holes, AQI categories, geocoder filtering, incomplete perimeter responses and model units/missing values. `tests/nearby.spec.ts` exercises the panel with intercepted provider responses; fixture tests do not establish live provider uptime.
+
 ## Data and interpretation
 
 `public/data/california-fires.geojson` contains six deliberately approximate historical reference points with year, county and reported final acreage. They are educational examples, not precise origins, perimeter geometries, active incident locations, or an exhaustive catalog. Acreages come from public CAL FIRE incident/statistics records: [CAL FIRE statistics](https://www.fire.ca.gov/our-impact/statistics), [incident archive](https://www.fire.ca.gov/incidents).
@@ -43,23 +56,27 @@ npx playwright install chromium
 npm test
 ```
 
-Tests use `/usr/bin/chromium` in the cloud machine. On another machine, set `CHROMIUM_PATH` to your Chromium/Chrome executable, or use Playwright's downloaded browser (automatically selected when system Chromium is absent). Tests cover import validation, layer management, fire search, responsive controls and GIS interactions. The live-service test verifies real NIFC loading and satellite tile responses. Public service access requires Internet connectivity and the required domains in environment settings. In this cloud machine, the test configuration creates a local NSS trust store using only the platform-supplied proxy CA; HTTPS verification stays enabled.
+Tests use `/usr/bin/chromium` in the cloud machine. On another machine, set `CHROMIUM_PATH` to your Chromium/Chrome executable, or use Playwright's downloaded browser (automatically selected when system Chromium is absent). Tests cover import validation, layer management, fire search, responsive controls and GIS interactions. The live-service test verifies real NIFC loading and satellite tile responses. Public service access requires Internet connectivity and the required domains in environment settings. In this cloud machine, the test configuration routes Chromium through the platform proxy and prepares an ignored NSS trust store using only the platform CA. An existing `~/.pki/nssdb` takes precedence; the setup step must import that same CA there. HTTPS verification stays enabled. Use `NODE_USE_ENV_PROXY=1` with Node 24 cloud commands so server-side fetches also honor the platform proxy. Direct live provider checks passed in this image; Chromium 154 still rejected the proxy certificate despite the platform CA being trusted, so live browser tests remain limited here. The provider-fixture browser tests pass.
 
 ## Publish online
 
-Run `npm run build`. Deploy the generated **dist/** directory to Netlify, Vercel, Cloudflare Pages, or another HTTPS static host. Use `npm ci` as the install command and `npm run build` as the build command; output directory is `dist`. No backend or secrets are needed. The build includes ArcGIS runtime assets copied by `scripts/copy-assets.mjs`.
+Run `npm run build`. Vercel is the recommended host: it serves **dist/** and automatically deploys `api/geocode.js` as a server function. Use `npm ci` as the install command, `npm run build` as the build command, and `dist` as the output directory. No API secrets are needed. The build includes ArcGIS runtime assets copied by `scripts/copy-assets.mjs`. A purely static host supports the map and map-point selection; town/address search additionally requires deploying an equivalent `/api/geocode` backend.
 
-For a straightforward first deployment, connect your GitHub repository to Netlify or Vercel, configure those commands, and deploy. The host supplies the public URL and supports a custom domain. Prefer a root-domain deployment; subpath hosting (such as GitHub Pages project URLs) requires configuring Vite's base and the absolute data/asset paths in `src/gis.ts`.
+For a straightforward first deployment, connect your GitHub repository to Vercel, configure those commands, and deploy. The host supplies the public URL and supports a custom domain. Prefer a root-domain deployment; subpath hosting (such as GitHub Pages project URLs) requires configuring Vite's base and the absolute data/asset paths in `src/gis.ts`.
 
 ## Extend
 
 - `src/App.tsx`: application shell, sidebar, import dialog and tool controls.
 - `src/gis.ts`: map lifecycle, layer factories, datasets, measurement and drawing widgets, geodesic calculations. Register new GIS tool widgets here and add a toolbar entry in App.
-- `src/style.css`: responsive visual system.
+- `src/NearbyPanel.tsx`: location search, nearby results, conditions and environmental controls.
+- `src/place-data.ts`, `src/fire-distance.ts`: provider requests, validation and boundary distances.
+- `src/environment-layers.ts`: smoke/perimeter layers, modeled sample symbology and selected-place graphics.
+- `api/geocode.js`: public California town/address search endpoint.
+- `src/style.css` and `src/nearby.css`: responsive visual system.
 - `public/data/`: local public demonstration data.
 - `tests/`: browser workflow checks.
 
-Possible next tools: actual point-to-perimeter distance, historical perimeter filtering, address search, export/share, and persistent saved maps. These are not implemented in this version.
+Possible next tools: historical perimeter filtering, export/share, and persistent saved maps. These are not implemented in this version.
 
 ## Homepage and daily CAL FIRE dashboard
 

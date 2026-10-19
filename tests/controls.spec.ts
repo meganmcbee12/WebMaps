@@ -5,6 +5,7 @@ test("closes and reopens panels with tools on the right and no historic legend",
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/map");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await page.getByRole("button", { name: "Layers", exact: true }).click();
   await expect(page.locator(".layer-list")).not.toContainText("Historic");
   await expect(page.locator(".legend")).not.toContainText("Historic");
   const map = (await page.locator(".map-panel").boundingBox())!;

@@ -3,8 +3,9 @@ import { existsSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 
-// Chromium 146+ uses XDG_DATA_HOME/pki/nssdb. Trust only the CA supplied
-// by this cloud platform; never turn off certificate validation.
+// Fresh Chromium profiles use XDG_DATA_HOME/pki/nssdb. An existing
+// ~/.pki/nssdb takes precedence and needs the platform CA imported at setup.
+// Trust only the platform CA; never turn off certificate validation.
 const platformCA = "/usr/local/share/ca-certificates/environment-proxy-ca.crt";
 const browserData = resolve(".cache/browser-data");
 if (existsSync(platformCA)) {
@@ -42,6 +43,16 @@ export default defineConfig({
     headless: true,
     launchOptions: {
       executablePath,
+      // Chromium does not inherit Node's HTTP proxy handling. Keep local
+      // Vite requests direct while routing public services through the cloud proxy.
+      ...(process.env.HTTPS_PROXY
+        ? {
+            proxy: {
+              server: process.env.HTTPS_PROXY,
+              bypass: "localhost,127.0.0.1,[::1]",
+            },
+          }
+        : {}),
       ...(existsSync(platformCA)
         ? { env: { ...process.env, XDG_DATA_HOME: browserData } }
         : {}),
