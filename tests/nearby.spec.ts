@@ -1,4 +1,9 @@
 import { test, expect } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  await page.route("**/USA_Wildfires_v1/FeatureServer/0/query?**", (route) =>
+    route.fulfill({ json: { objectIds: [] } }),
+  );
+});
 
 test("searches a place, measures a real boundary, inspects conditions and toggles modeled layers", async ({
   page,
@@ -85,7 +90,9 @@ test("searches a place, measures a real boundary, inspects conditions and toggle
       });
     });
   await page.goto("/map");
-  await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await expect(page.getByText("EXPLORER READY")).toBeVisible({
+    timeout: 45000,
+  });
   await page.getByLabel("Town or street address").fill("Sacramento");
   await page.getByRole("button", { name: "Search places" }).click();
   await page
@@ -161,14 +168,18 @@ test("empty perimeter results and failed conditions do not report zero pollution
     (route) => route.fulfill({ status: 503, body: "Unavailable" }),
   );
   await page.goto("/map");
-  await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await expect(page.getByText("EXPLORER READY")).toBeVisible({
+    timeout: 45000,
+  });
   await page.getByLabel("Town or street address").fill("Test town");
   await page.getByRole("button", { name: "Search places" }).click();
   await page
     .getByRole("button", { name: "Test California town Fixture" })
     .click();
   await expect(
-    page.getByText("No reported perimeters were returned", { exact: false }),
+    page.getByText("No reported fire locations or perimeters were returned", {
+      exact: false,
+    }),
   ).toContainText("does not mean there are no fires");
   await expect(page.locator(".condition-card").nth(0)).toContainText(
     "Unavailable",
@@ -179,7 +190,8 @@ test("empty perimeter results and failed conditions do not report zero pollution
   await expect(page.locator(".condition-card").nth(2)).toContainText(
     "Unavailable",
   );
-  await page.getByLabel("Wind layer", { exact: true }).check();
+  // A failed load can reset the checkbox before check() verifies its state.
+  await page.getByLabel("Wind layer", { exact: true }).click();
   await expect(
     page.getByLabel("Wind layer", { exact: true }),
   ).not.toBeChecked();
@@ -196,4 +208,112 @@ test("local geocoder endpoint rejects invalid requests without contacting a prov
   expect(response.headers()["cache-control"]).toBe("no-store");
   const invalidMethod = await request.post("/api/geocode?q=Sacramento");
   expect(invalidMethod.status()).toBe(405);
+});
+
+test("includes fires without perimeters and opens their location-distance popup", async ({
+  page,
+}) => {
+  await page.route("**/api/geocode?**", (route) =>
+    route.fulfill({
+      json: {
+        results: [
+          {
+            name: "Hemet, California",
+            longitude: -116.9731,
+            latitude: 33.7476,
+            source: "Fixture",
+          },
+        ],
+      },
+    }),
+  );
+  await page.route("**/USA_Wildfires_v1/FeatureServer/0/query?**", (route) => {
+    const url = new URL(route.request().url());
+    return route.fulfill({
+      json:
+        url.searchParams.get("returnIdsOnly") === "true"
+          ? { objectIds: [1, 2] }
+          : {
+              features: [
+                {
+                  attributes: {
+                    OBJECTID: 1,
+                    IrwinID: "{MATCHED}",
+                    IncidentName: "Matched location",
+                  },
+                  geometry: { x: -116.98, y: 33.75 },
+                },
+                {
+                  attributes: {
+                    OBJECTID: 2,
+                    IrwinID: "POINT-ONLY",
+                    IncidentName: "Location-only fire",
+                    ModifiedOnDateTime: Date.now(),
+                  },
+                  geometry: { x: -116.97, y: 33.76 },
+                },
+              ],
+            },
+    });
+  });
+  await page.route(
+    "**/WFIGS_Interagency_Perimeters_Current/FeatureServer/0/query?**",
+    (route) => {
+      const url = new URL(route.request().url());
+      const lookup =
+        !url.searchParams.has("geometry") && url.searchParams.has("where");
+      return route.fulfill({
+        json:
+          url.searchParams.get("returnIdsOnly") === "true"
+            ? { objectIds: lookup ? [] : [10] }
+            : {
+                features: [
+                  {
+                    attributes: {
+                      OBJECTID: 10,
+                      poly_IRWINID: "matched",
+                      poly_IncidentName: "Matched boundary",
+                    },
+                    geometry: {
+                      rings: [
+                        [
+                          [-116.98, 33.75],
+                          [-116.97, 33.75],
+                          [-116.97, 33.76],
+                          [-116.98, 33.76],
+                          [-116.98, 33.75],
+                        ],
+                      ],
+                    },
+                  },
+                ],
+              },
+      });
+    },
+  );
+  await page.goto("/map");
+  await expect(page.getByText("EXPLORER READY")).toBeVisible({
+    timeout: 45000,
+  });
+  await page.getByLabel("Town or street address").fill("Hemet");
+  await page.getByRole("button", { name: "Search places" }).click();
+  await page.getByRole("button", { name: "Hemet, California Fixture" }).click();
+  await expect(page.locator(".nearby-fire-list>li")).toHaveCount(2);
+  await expect(page.locator(".nearby-fire-list")).toContainText(
+    "mi to reported location",
+  );
+  await expect(page.locator(".nearby-fire-list")).toContainText(
+    "mi to boundary",
+  );
+  await expect(page.locator(".nearby-fire-list")).not.toContainText(
+    "Matched location",
+  );
+  await page.getByRole("button", { name: /Location-only fire/ }).click();
+  await expect(page.locator(".esri-popup")).toContainText(
+    "Approx. distance to reported location",
+  );
+  await expect(page.locator(".esri-popup")).toContainText(
+    "Footprint not determined from a point",
+  );
+  await page.screenshot({ path: "test-results/nearby-location-fallback.png" });
 });

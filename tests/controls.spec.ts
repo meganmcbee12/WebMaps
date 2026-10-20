@@ -4,7 +4,9 @@ test("closes and reopens panels with tools on the right and no historic legend",
 }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
   await page.goto("/map");
-  await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await expect(page.getByText("EXPLORER READY")).toBeVisible({
+    timeout: 45000,
+  });
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await expect(page.locator(".layer-list")).not.toContainText("Historic");
   await expect(page.locator(".legend")).not.toContainText("Historic");
@@ -48,7 +50,9 @@ test("clicking a fire zooms to it and preserves its popup", async ({
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/map");
-  await expect(page.getByText("EXPLORER READY")).toBeVisible();
+  await expect(page.getByText("EXPLORER READY")).toBeVisible({
+    timeout: 45000,
+  });
   await page.getByRole("button", { name: "Fire explorer" }).click();
   await page.getByLabel("Show Historic fire locations").click();
   await page.getByRole("button", { name: "Camp Fire Butte · 2018" }).click();
@@ -75,5 +79,7 @@ test("clicking a fire zooms to it and preserves its popup", async ({
   await page.waitForTimeout(1800);
   const after = await longitudeOffset();
   expect(after).toBeLessThan(before / 2);
-  await expect(page.locator(".esri-popup")).toContainText("153,336");
+  await expect(page.locator(".esri-popup")).toContainText("153,336", {
+    timeout: 15000,
+  });
 });

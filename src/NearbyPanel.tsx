@@ -9,16 +9,17 @@ import {
   ArrowUpRight,
   LoaderCircle,
 } from "lucide-react";
+import Point from "@arcgis/core/geometry/Point";
 import Graphic from "@arcgis/core/Graphic";
 import { type createGIS } from "./gis";
 import {
-  nearbyBoundaries,
+  nearbyFires,
   conditionsAt,
   smokeAt,
   aqiCategory,
   compass,
   type Place,
-  type Boundary,
+  type NearbyFire,
   type Conditions,
 } from "./place-data";
 import "./nearby.css";
@@ -49,9 +50,10 @@ export default function NearbyPanel({
     [searchError, setSearchError] = useState("");
   const [place, setPlace] = useState<Place | null>(null),
     [radius, setRadius] = useState(25),
-    [boundaries, setBoundaries] = useState<Boundary[]>([]),
+    [fires, setFires] = useState<NearbyFire[]>([]),
     [busy, setBusy] = useState(false),
     [boundaryError, setBoundaryError] = useState(""),
+    [fireWarnings, setFireWarnings] = useState<string[]>([]),
     [checked, setChecked] = useState<string | null>(null),
     [limit, setLimit] = useState(10);
   const [conditions, setConditions] = useState<Conditions | null>(null),
@@ -120,24 +122,26 @@ export default function NearbyPanel({
     if (!place) return;
     const controller = new AbortController();
     setBusy(true);
-    setBoundaries([]);
+    setFires([]);
+    setFireWarnings([]);
     setBoundaryError("");
     setChecked(null);
     setLimit(10);
     void gis.environment
       .markPlace(place, radius, controller.signal)
       .catch(() => {});
-    nearbyBoundaries(place, radius, controller.signal)
+    nearbyFires(place, radius, controller.signal)
       .then((rows) => {
         if (!controller.signal.aborted) {
-          setBoundaries(rows);
+          setFires(rows.fires);
+          setFireWarnings(rows.warnings);
           setChecked(new Date().toISOString());
         }
       })
       .catch((error) => {
         if (!controller.signal.aborted)
           setBoundaryError(
-            error.message || "Reported perimeters could not be checked.",
+            error.message || "Reported fires could not be checked.",
           );
       })
       .finally(() => {
@@ -234,22 +238,50 @@ export default function NearbyPanel({
       }
     }
   }
-  async function focusBoundary(boundary: Boundary) {
+  async function focusFire(fire: NearbyFire) {
     await chooseTool("explore");
-    const geometry = gis.environment.selectBoundary(boundary);
-    await gis.view.goTo(geometry.extent!.expand(1.4)).catch(() => {});
+    const geometry = fire.boundary
+      ? gis.environment.selectBoundary(fire.boundary)
+      : new Point({ longitude: fire.point![0], latitude: fire.point![1] });
+    if (!fire.boundary) {
+      gis.environment.selection.removeAll();
+      gis.environment.selection.add(
+        new Graphic({
+          geometry,
+          symbol: {
+            type: "simple-marker",
+            size: 17,
+            color: "#b30824",
+            outline: { color: "white", width: 2 },
+          },
+        }),
+      );
+    }
+    await gis.view
+      .goTo(
+        fire.boundary
+          ? geometry.extent!.expand(1.4)
+          : { target: geometry, zoom: 12 },
+      )
+      .catch(() => {});
     await gis.view.openPopup({
       features: [
         new Graphic({
           geometry,
           attributes: {
-            name: boundary.name,
-            distance: boundary.boundaryMiles.toFixed(1),
-            location: boundary.inside
-              ? "Inside reported footprint"
-              : "Outside reported footprint",
-            updated: date(boundary.updated),
-            acres: boundary.acres ?? "Unavailable",
+            name: fire.name,
+            distance: fire.distanceMiles.toFixed(1),
+            basis:
+              fire.distanceKind === "boundary"
+                ? "Reported fire boundary"
+                : "Reported fire location (boundary not matched)",
+            location: fire.boundary
+              ? fire.inside
+                ? "Inside reported footprint"
+                : "Outside reported footprint"
+              : "Footprint not determined from a point",
+            updated: date(fire.updated),
+            acres: fire.acres ?? "Unavailable",
           },
           popupTemplate: {
             title: "{name}",
@@ -259,11 +291,25 @@ export default function NearbyPanel({
                 fieldInfos: [
                   {
                     fieldName: "distance",
-                    label: "Approx. distance to boundary (mi)",
+                    label:
+                      fire.distanceKind === "boundary"
+                        ? "Approx. distance to boundary (mi)"
+                        : "Approx. distance to reported location (mi)",
                   },
+                  { fieldName: "basis", label: "Distance basis" },
                   { fieldName: "location", label: "Your selected place" },
-                  { fieldName: "acres", label: "Reported perimeter acres" },
-                  { fieldName: "updated", label: "Perimeter update" },
+                  {
+                    fieldName: "acres",
+                    label: fire.boundary
+                      ? "Reported perimeter acres"
+                      : "Reported incident acres",
+                  },
+                  {
+                    fieldName: "updated",
+                    label: fire.boundary
+                      ? "Perimeter update"
+                      : "Incident update",
+                  },
                 ],
               },
             ],
@@ -356,59 +402,72 @@ export default function NearbyPanel({
           <div className="nearby-section-title">
             <Flame size={18} />
             <h3>Nearby reported fires</h3>
-            <span>{busy ? "…" : boundaries.length}</span>
+            <span>{busy ? "…" : fires.length}</span>
           </div>
+          {fireWarnings.map((message) => (
+            <p className="nearby-error" role="status" key={message}>
+              {message}
+            </p>
+          ))}
           {busy ? (
             <p className="nearby-muted" role="status">
-              Checking reported perimeters…
+              Checking reported fires…
             </p>
           ) : boundaryError ? (
             <div className="nearby-error" role="alert">
               {boundaryError} Other map layers can still be used.
             </div>
-          ) : !boundaries.length ? (
+          ) : !fires.length ? (
             <p className="nearby-muted">
-              No reported perimeters were returned within {radius} miles. This
-              does not mean there are no fires nearby.
+              No reported fire locations or perimeters were returned within{" "}
+              {radius} miles. This does not mean there are no fires nearby.
             </p>
           ) : (
             <ul className="nearby-fire-list">
-              {boundaries.slice(0, limit).map((fire) => (
+              {fires.slice(0, limit).map((fire) => (
                 <li key={fire.id}>
-                  <button onClick={() => void focusBoundary(fire)}>
+                  <button onClick={() => void focusFire(fire)}>
                     <strong>{fire.name}</strong>
                     <b>
                       {fire.inside
                         ? "Inside reported footprint"
-                        : `${fire.boundaryMiles.toFixed(1)} mi to boundary`}
+                        : `${fire.distanceMiles.toFixed(1)} mi to ${fire.distanceKind === "boundary" ? "boundary" : "reported location"}`}
                     </b>
+                    {fire.distanceKind === "location" && (
+                      <span>Boundary not matched · location distance</span>
+                    )}
                     {fire.inside && (
                       <span>
-                        Nearest boundary: {fire.boundaryMiles.toFixed(1)} mi
+                        Nearest boundary: {fire.distanceMiles.toFixed(1)} mi
                       </span>
                     )}
                     <small>
                       {date(fire.updated)}
-                      {old(fire.updated) ? " · older boundary" : ""}
+                      {old(fire.updated)
+                        ? ` · older ${fire.distanceKind === "boundary" ? "boundary" : "incident update"}`
+                        : ""}
                     </small>
                   </button>
                 </li>
               ))}
             </ul>
           )}
-          {boundaries.length > limit && (
+          {fires.length > limit && (
             <button
               className="more-fires"
               onClick={() => setLimit((value) => value + 10)}
             >
-              Show more ({boundaries.length - limit} remaining)
+              Show more ({fires.length - limit} remaining)
             </button>
           )}
           {checked && <p className="nearby-muted">Checked {date(checked)}</p>}
           <p className="distance-explainer">
-            Approximate geodesic distance to the reported perimeter—not a fire
-            center or driving distance. Fires without published perimeters are
-            missing from this list. Boundaries can lag actual conditions.
+            The circle is your search area. This list includes reported fire
+            locations inside it and fire boundaries that intersect it. Distances
+            use a matched boundary when available; otherwise they use the
+            reported location. Each result labels its distance basis. These are
+            approximate straight-line distances, not driving distances. Reports
+            and boundaries can lag actual conditions.
           </p>
           <div className="nearby-section-title">
             <CloudFog size={18} />

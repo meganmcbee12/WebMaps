@@ -11,6 +11,9 @@ function angular(a: Coordinate, b: Coordinate) {
     Math.cos(p) * Math.cos(q) * Math.sin(rad(b[0] - a[0]) / 2) ** 2;
   return 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
 }
+export function pointMiles(a: Coordinate, b: Coordinate) {
+  return angular(a, b) * R;
+}
 function bearing(a: Coordinate, b: Coordinate) {
   const d = rad(b[0] - a[0]),
     p = rad(a[1]),

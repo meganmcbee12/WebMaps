@@ -8,6 +8,7 @@ import {
 } from "../../src/fire-distance.ts";
 import {
   nearbyBoundaries,
+  nearbyFires,
   conditionsAt,
   smokeAt,
 } from "../../src/place-data.ts";
@@ -222,5 +223,121 @@ test("smoke distinguishes no mapped plume from service failure, selects stronges
       assert.equal(v.density, "Heavy");
       assert.equal(v.time, "2026-10-19T13:00:00.000Z");
     },
+  );
+});
+
+const incident = (
+  id,
+  irwin,
+  x = -121.49,
+  y = 38.02,
+  name = `Incident ${id}`,
+) => ({
+  attributes: {
+    OBJECTID: id,
+    IrwinID: irwin,
+    IncidentName: name,
+    ModifiedOnDateTime: Date.now(),
+  },
+  geometry: { x, y },
+});
+const perimeter = (id, irwin, rings = [square]) => ({
+  attributes: {
+    OBJECTID: id,
+    poly_IRWINID: irwin,
+    poly_IncidentName: `Boundary ${id}`,
+  },
+  geometry: { rings },
+});
+function combinedFixture(url, points, boundaries) {
+  const isPoints = url.pathname.includes("USA_Wildfires");
+  const rows = isPoints ? points : boundaries;
+  if (url.searchParams.get("returnIdsOnly"))
+    return { objectIds: rows.map((x) => x.attributes.OBJECTID) };
+  return { features: rows };
+}
+test("nearby list combines locations and perimeters, matches normalized IDs and keeps same-name fires distinct", async () => {
+  const points = [
+    incident(1, "{ABC}"),
+    incident(2, "point-only", -121.49, 38.03, "Same name"),
+    incident(3, "other", -121.48, 38.04, "Same name"),
+    incident(4, "outside", -115, 35),
+  ];
+  const boundaries = [perimeter(10, "abc"), perimeter(11, "boundary-only")];
+  await mocked(
+    (url) => combinedFixture(url, points, boundaries),
+    async () => {
+      const { fires, warnings } = await nearbyFires(place, 25);
+      assert.equal(warnings.length, 0);
+      assert.equal(fires.length, 4);
+      assert.equal(fires.filter((f) => f.id === "abc").length, 1);
+      assert.equal(fires.find((f) => f.id === "abc").distanceKind, "boundary");
+      assert.equal(
+        fires.find((f) => f.id === "point-only").distanceKind,
+        "location",
+      );
+      assert.equal(fires.filter((f) => f.name === "Same name").length, 2);
+      assert.ok(!fires.some((f) => f.id === "outside"));
+    },
+  );
+});
+test("published boundary outside the circle still matches an incident location inside it", async () => {
+  const point = incident(1, "outside-boundary");
+  const boundary = perimeter(10, "{OUTSIDE-BOUNDARY}", [
+    [
+      [-123, 37],
+      [-122.9, 37],
+      [-122.9, 37.1],
+      [-123, 37.1],
+      [-123, 37],
+    ],
+  ]);
+  await mocked(
+    (url) => {
+      if (url.pathname.includes("USA_Wildfires"))
+        return combinedFixture(url, [point], []);
+      if (url.searchParams.get("returnIdsOnly"))
+        return { objectIds: url.searchParams.has("geometry") ? [] : [10] };
+      return { features: [boundary] };
+    },
+    async () => {
+      const { fires } = await nearbyFires(place, 25);
+      assert.equal(fires.length, 1);
+      assert.equal(fires[0].distanceKind, "boundary");
+      assert.ok(fires[0].distanceMiles > 25);
+    },
+  );
+});
+test("unavailable perimeters preserve point results with an explicit partial-data warning", async () => {
+  await mocked(
+    (url) =>
+      url.pathname.includes("USA_Wildfires")
+        ? combinedFixture(url, [incident(1, "point")], [])
+        : { error: { message: "Service unavailable" } },
+    async () => {
+      const { fires, warnings } = await nearbyFires(place, 25);
+      assert.equal(fires.length, 1);
+      assert.equal(fires[0].distanceKind, "location");
+      assert.match(warnings[0], /Perimeter data is unavailable/);
+    },
+  );
+});
+test("unavailable locations preserve perimeter results and do not claim complete coverage", async () => {
+  await mocked(
+    (url) =>
+      url.pathname.includes("USA_Wildfires")
+        ? { error: { message: "Service unavailable" } }
+        : combinedFixture(url, [], [perimeter(1, "boundary")]),
+    async () => {
+      const { fires, warnings } = await nearbyFires(place, 25);
+      assert.equal(fires.length, 1);
+      assert.match(warnings[0], /locations are unavailable/);
+    },
+  );
+});
+test("both fire sources failing is an error rather than an empty successful search", async () => {
+  await mocked(
+    () => ({ error: { message: "Unavailable" } }),
+    () => assert.rejects(() => nearbyFires(place, 25), /could not be checked/),
   );
 });

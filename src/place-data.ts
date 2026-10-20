@@ -1,10 +1,11 @@
 import {
   perimeterDistance,
+  pointMiles,
   aqiCategory,
   compass,
   type Coordinate,
 } from "./fire-distance.ts";
-import { fireService, SMOKE_URL } from "./sources.ts";
+import { fireService, usaWildfiresService, SMOKE_URL } from "./sources.ts";
 export { SMOKE_URL } from "./sources.ts";
 export type Place = {
   name: string;
@@ -14,6 +15,7 @@ export type Place = {
 };
 export type Boundary = {
   id: string;
+  incidentId: string | null;
   name: string;
   boundaryMiles: number;
   inside: boolean;
@@ -71,6 +73,7 @@ export async function nearbyBoundaries(
   place: Place,
   radius: number,
   signal?: AbortSignal,
+  incidentIds?: string[],
 ): Promise<Boundary[]> {
   const geometry = JSON.stringify({
     x: place.longitude,
@@ -79,13 +82,17 @@ export async function nearbyBoundaries(
   });
   const ids = await json(
     queryUrl(fireService, {
-      where: "1=1",
-      geometry,
-      geometryType: "esriGeometryPoint",
-      inSR: "4326",
-      distance: String(radius),
-      units: "esriSRUnit_StatuteMile",
-      spatialRel: "esriSpatialRelIntersects",
+      where: incidentIds ? incidentWhere(incidentIds) : "1=1",
+      ...(incidentIds
+        ? {}
+        : {
+            geometry,
+            geometryType: "esriGeometryPoint",
+            inSR: "4326",
+            distance: String(radius),
+            units: "esriSRUnit_StatuteMile",
+            spatialRel: "esriSpatialRelIntersects",
+          }),
       returnIdsOnly: "true",
     }),
     signal,
@@ -126,7 +133,9 @@ export async function nearbyBoundaries(
       );
       if (
         !Number.isFinite(distance.boundaryMiles) ||
-        (!distance.inside && distance.boundaryMiles > radius + 0.05)
+        (!incidentIds &&
+          !distance.inside &&
+          distance.boundaryMiles > radius + 0.05)
       )
         continue;
       const a = feature.attributes || {},
@@ -137,8 +146,10 @@ export async function nearbyBoundaries(
             a.OBJECTID_1 ||
             JSON.stringify(rings[0]?.[0]),
         );
+      const incidentId = normalizeIncident(a.poly_IRWINID || a.attr_IrwinID);
       const entry: Boundary = {
-        id,
+        id: incidentId || `perimeter:${id}`,
+        incidentId,
         name:
           a.poly_IncidentName || a.attr_IncidentName || "Unnamed reported fire",
         ...distance,
@@ -150,19 +161,225 @@ export async function nearbyBoundaries(
         acres: typeof a.poly_GISAcres === "number" ? a.poly_GISAcres : null,
         rings,
       };
-      const old = grouped.get(id);
+      const old = grouped.get(entry.id);
       if (
         !old ||
         (entry.inside && !old.inside) ||
         (entry.inside === old.inside && entry.boundaryMiles < old.boundaryMiles)
       )
-        grouped.set(id, entry);
+        grouped.set(entry.id, entry);
     }
   }
   return [...grouped.values()].sort(
     (a, b) =>
       Number(b.inside) - Number(a.inside) || a.boundaryMiles - b.boundaryMiles,
   );
+}
+// Match only shared incident IDs, never names: unrelated fires can share a name.
+function normalizeIncident(value: unknown): string | null {
+  const id =
+    typeof value === "string"
+      ? value.trim().replace(/[{}]/g, "").toLowerCase()
+      : "";
+  return id || null;
+}
+function incidentWhere(ids: string[]) {
+  const values = ids
+    .flatMap((id) => [id.toUpperCase(), `{${id.toUpperCase()}}`])
+    .map((id) => `'${id.replace(/'/g, "''")}'`)
+    .join(",");
+  return `UPPER(poly_IRWINID) IN (${values}) OR UPPER(attr_IrwinID) IN (${values})`;
+}
+export type NearbyFire = {
+  id: string;
+  name: string;
+  distanceMiles: number;
+  distanceKind: "boundary" | "location";
+  inside: boolean;
+  updated: string | null;
+  acres: number | null;
+  boundary?: Boundary;
+  point?: Coordinate;
+};
+type IncidentLocation = {
+  id: string;
+  incidentId: string | null;
+  name: string;
+  point: Coordinate;
+  distanceMiles: number;
+  updated: string | null;
+  acres: number | null;
+};
+async function nearbyLocations(
+  place: Place,
+  radius: number,
+  signal?: AbortSignal,
+): Promise<IncidentLocation[]> {
+  const ids = await json(
+    queryUrl(usaWildfiresService, {
+      where: "1=1",
+      geometry: JSON.stringify({
+        x: place.longitude,
+        y: place.latitude,
+        spatialReference: { wkid: 4326 },
+      }),
+      geometryType: "esriGeometryPoint",
+      inSR: "4326",
+      distance: String(radius),
+      units: "esriSRUnit_StatuteMile",
+      spatialRel: "esriSpatialRelIntersects",
+      returnIdsOnly: "true",
+    }),
+    signal,
+  );
+  if (!Array.isArray(ids.objectIds))
+    throw Error("The incident service did not return valid IDs.");
+  if (ids.objectIds.length > 2000)
+    throw Error("Too many incidents. Choose a smaller radius.");
+  const grouped = new Map<string, IncidentLocation>();
+  for (let start = 0; start < ids.objectIds.length; start += 200) {
+    const batch = ids.objectIds.slice(start, start + 200);
+    const data = await json(
+      queryUrl(usaWildfiresService, {
+        objectIds: batch.join(","),
+        outFields: "*",
+        outSR: "4326",
+        returnGeometry: "true",
+      }),
+      signal,
+    );
+    if (
+      data.exceededTransferLimit ||
+      !Array.isArray(data.features) ||
+      data.features.length !== batch.length
+    )
+      throw Error("The incident response is incomplete. Please retry.");
+    for (const feature of data.features) {
+      const { x, y } = feature.geometry || {};
+      if (!Number.isFinite(x) || !Number.isFinite(y))
+        throw Error(
+          "An incident is missing its location. Results are incomplete.",
+        );
+      const point: Coordinate = [x, y],
+        distanceMiles = pointMiles([place.longitude, place.latitude], point);
+      if (distanceMiles > radius + 0.00001) continue;
+      const a = feature.attributes || {},
+        incidentId = normalizeIncident(a.IrwinID);
+      if (!incidentId && a.OBJECTID == null)
+        throw Error("An incident is missing its identifier.");
+      const id = incidentId || `location:${a.OBJECTID}`;
+      const entry: IncidentLocation = {
+        id,
+        incidentId,
+        point,
+        distanceMiles,
+        name: a.IncidentName || "Unnamed reported fire",
+        updated: timestamp(a.ModifiedOnDateTime || a.ICS209ReportDateTime),
+        acres: typeof a.DailyAcres === "number" ? a.DailyAcres : null,
+      };
+      const previous = grouped.get(id);
+      if (!previous || (entry.updated || "") > (previous.updated || ""))
+        grouped.set(id, entry);
+    }
+  }
+  return [...grouped.values()];
+}
+export async function nearbyFires(
+  place: Place,
+  radius: number,
+  signal?: AbortSignal,
+): Promise<{ fires: NearbyFire[]; warnings: string[] }> {
+  const [locations, perimeters] = await Promise.allSettled([
+    nearbyLocations(place, radius, signal),
+    nearbyBoundaries(place, radius, signal),
+  ]);
+  if (signal?.aborted) throw signal.reason;
+  if (locations.status === "rejected" && perimeters.status === "rejected")
+    throw Error(
+      "Fire locations and perimeters could not be checked. Please retry.",
+    );
+  const warnings: string[] = [];
+  if (locations.status === "rejected")
+    warnings.push(
+      "Fire locations are unavailable; this list only includes reported perimeters and may be incomplete.",
+    );
+  if (perimeters.status === "rejected")
+    warnings.push(
+      "Perimeter data is unavailable. Distances use reported fire locations; boundary matches may be missing.",
+    );
+  const boundaries = perimeters.status === "fulfilled" ? perimeters.value : [];
+  const points = locations.status === "fulfilled" ? locations.value : [];
+  const byIncident = new Map(
+    boundaries.filter((b) => b.incidentId).map((b) => [b.incidentId!, b]),
+  );
+  // A location inside the circle can belong to a perimeter outside it. Look up
+  // unmatched IDs as well, so a published boundary still takes precedence.
+  if (perimeters.status === "fulfilled") {
+    const missing = points.flatMap((p) =>
+      p.incidentId && !byIncident.has(p.incidentId) ? [p.incidentId] : [],
+    );
+    try {
+      for (let start = 0; start < missing.length; start += 20) {
+        const matches = await nearbyBoundaries(
+          place,
+          radius,
+          signal,
+          missing.slice(start, start + 20),
+        );
+        for (const boundary of matches)
+          if (boundary.incidentId)
+            byIncident.set(boundary.incidentId, boundary);
+      }
+    } catch {
+      if (signal?.aborted) throw signal.reason;
+      warnings.push(
+        "Some boundary matches could not be checked. Those fires show distance to their reported location.",
+      );
+    }
+  }
+  const fires = new Map<string, NearbyFire>();
+  function fromBoundary(b: Boundary): NearbyFire {
+    return {
+      id: b.id,
+      name: b.name,
+      distanceMiles: b.boundaryMiles,
+      distanceKind: "boundary",
+      inside: b.inside,
+      updated: b.updated,
+      acres: b.acres,
+      boundary: b,
+    };
+  }
+  for (const boundary of boundaries)
+    fires.set(boundary.id, fromBoundary(boundary));
+  for (const point of points) {
+    const boundary = point.incidentId
+      ? byIncident.get(point.incidentId)
+      : undefined;
+    fires.set(
+      point.id,
+      boundary
+        ? { ...fromBoundary(boundary), point: point.point }
+        : {
+            id: point.id,
+            name: point.name,
+            distanceMiles: point.distanceMiles,
+            distanceKind: "location",
+            inside: false,
+            updated: point.updated,
+            acres: point.acres,
+            point: point.point,
+          },
+    );
+  }
+  return {
+    fires: [...fires.values()].sort(
+      (a, b) =>
+        Number(b.inside) - Number(a.inside) ||
+        a.distanceMiles - b.distanceMiles,
+    ),
+    warnings,
+  };
 }
 const finite = (value: unknown) =>
   typeof value === "number" && Number.isFinite(value) && value >= 0
