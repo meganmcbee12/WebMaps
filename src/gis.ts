@@ -1,3 +1,4 @@
+import { terrainMarker } from "./scene-symbols";
 import SimpleRenderer from "@arcgis/core/renderers/SimpleRenderer";
 import {
   fireMarker,
@@ -7,6 +8,15 @@ import {
 import esriConfig from "@arcgis/core/config";
 esriConfig.assetsPath = "/arcgis-assets";
 import Map from "@arcgis/core/Map";
+import SceneView from "@arcgis/core/views/SceneView";
+import ElevationLayer from "@arcgis/core/layers/ElevationLayer";
+import {
+  ELEVATION_URL,
+  INITIAL_CAMERA,
+  TERRAIN_PLACES,
+  toolNeeds2D,
+  type ViewMode,
+} from "./scene-config";
 import MapView from "@arcgis/core/views/MapView";
 import GeoJSONLayer from "@arcgis/core/layers/GeoJSONLayer";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
@@ -70,7 +80,11 @@ export const locations = [
     y: 34.15,
   },
 ];
-export function createGIS(container: HTMLDivElement) {
+type MapEvent = { x: number; y: number; mapPoint: Point | null };
+export function createGIS(
+  container: HTMLDivElement,
+  initialMode: ViewMode = "2d",
+) {
   const fires = new GeoJSONLayer({
     url: `${location.origin}/data/california-fires.geojson`,
     title: "Historic fire reference points",
@@ -107,7 +121,10 @@ export function createGIS(container: HTMLDivElement) {
     refreshInterval: 5,
     popupEnabled: true,
   });
-  const drawings = new GraphicsLayer({ title: "My drawings" });
+  const drawings = new GraphicsLayer({
+    title: "My drawings",
+    elevationInfo: { mode: "on-the-ground" },
+  });
   const context = new GeoJSONLayer({
     url: `${location.origin}/data/western-states.geojson`,
     title: "Western states context",
@@ -136,8 +153,14 @@ export function createGIS(container: HTMLDivElement) {
     ],
   });
   const environment = createEnvironmentLayers();
+  if (initialMode === "3d") environment.perimeters.visible = true;
+  const elevation = new ElevationLayer({
+    url: ELEVATION_URL,
+    title: "Esri World Elevation",
+  });
   const map = new Map({
-    basemap: "osm",
+    basemap: initialMode === "3d" ? "satellite" : "osm",
+    ground: { layers: [elevation], surfaceColor: "#c9b799" },
     layers: [
       context,
       fires,
@@ -151,8 +174,8 @@ export function createGIS(container: HTMLDivElement) {
       drawings,
     ],
   });
-  const view = new MapView({
-    container,
+  const view2d = new MapView({
+    container: initialMode === "2d" ? container : null,
     map,
     center: [-120, 37.6],
     zoom: 6,
@@ -164,8 +187,245 @@ export function createGIS(container: HTMLDivElement) {
     },
     ui: { components: ["attribution"] },
   });
+  type ActiveView = MapView | SceneView;
+  let scene: SceneView | null = null;
+  let active: ActiveView = view2d;
+  let disposed = false;
+  let terrainError = "";
+  let basemapError = "";
+  let switching = false;
+  let startupNotice = "";
+  const subscriptions = new Set<{
+    kind: "click" | "pointer-move";
+    callback: (event: MapEvent) => void;
+    handles: { remove: () => void }[];
+  }>();
+  function attach(
+    view: ActiveView,
+    subscription: {
+      kind: "click" | "pointer-move";
+      callback: (event: MapEvent) => void;
+      handles: { remove: () => void }[];
+    },
+  ) {
+    const callback = (event: { x: number; y: number }) => {
+      if (view === active && view.ready)
+        subscription.callback({
+          x: event.x,
+          y: event.y,
+          mapPoint: view.toMap({ x: event.x, y: event.y }) ?? null,
+        });
+    };
+    // Both view types expose these screen events; keeping registrations on each
+    // view preserves place picking and feature inspection across mode switches.
+    const handle =
+      view.type === "2d"
+        ? subscription.kind === "click"
+          ? view.on("click", callback)
+          : view.on("pointer-move", callback)
+        : subscription.kind === "click"
+          ? view.on("click", callback)
+          : view.on("pointer-move", callback);
+    subscription.handles.push(handle);
+  }
+  function on(
+    kind: "click" | "pointer-move",
+    callback: (event: MapEvent) => void,
+  ) {
+    const subscription = {
+      kind,
+      callback,
+      handles: [] as { remove: () => void }[],
+    };
+    subscriptions.add(subscription);
+    attach(view2d, subscription);
+    if (scene) attach(scene, subscription);
+    return {
+      remove() {
+        subscription.handles.forEach((handle) => handle.remove());
+        subscriptions.delete(subscription);
+      },
+    };
+  }
+  function updateModeLayers() {
+    context.visible = active.type === "2d" && map.basemap?.id === "osm";
+    environment.setSceneMode(active.type === "3d");
+    applyFireSymbols();
+  }
+  function makeScene() {
+    const result = new SceneView({
+      container: null,
+      map,
+      qualityProfile: "medium",
+      camera: INITIAL_CAMERA,
+      constraints: {
+        tilt: { max: 75, mode: "manual" },
+        altitude: { min: 100 },
+      },
+      environment: {
+        atmosphereEnabled: true,
+        starsEnabled: false,
+        lighting: { type: "virtual", directShadowsEnabled: true },
+      },
+      popupEnabled: false,
+      popup: {
+        dockEnabled: true,
+        dockOptions: { position: "bottom-right", breakpoint: false },
+      },
+      ui: { components: ["attribution"] },
+    });
+    for (const subscription of subscriptions) attach(result, subscription);
+    void elevation.load().catch(() => {
+      terrainError =
+        "Elevation data could not load. Terrain may appear flat; retry 3D when the service is available.";
+    });
+    return result;
+  }
+  if (initialMode === "3d") {
+    try {
+      scene = makeScene();
+      active = scene;
+      scene.container = container;
+    } catch {
+      detachFailedScene();
+      active = view2d;
+      view2d.container = container;
+      startupNotice =
+        "3D could not start on this device. The map opened in 2D.";
+    }
+  }
+  updateModeLayers();
+  async function readyView(view: ActiveView) {
+    let timer: ReturnType<typeof setTimeout>;
+    try {
+      await Promise.race([
+        view.when(),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(Error("The 3D view took too long to start.")),
+            25000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer!);
+    }
+    if (disposed) throw Error("Map closed");
+  }
+  function detachFailedScene() {
+    if (scene) {
+      scene.container = null;
+      scene.map = null;
+      scene.destroy();
+      scene = null;
+    }
+  }
+  async function initialize() {
+    try {
+      await readyView(active);
+    } catch (error) {
+      if (active.type === "2d" || disposed) throw error;
+      detachFailedScene();
+      active = view2d;
+      view2d.container = container;
+      updateModeLayers();
+      await readyView(view2d);
+      return "3D is unavailable on this device or connection. The map opened in 2D; you can try 3D again.";
+    }
+    void map.basemap?.loadAll().catch(() => {
+      basemapError =
+        "The selected basemap could not load. Try another basemap or refresh the page.";
+    });
+    return startupNotice;
+  }
+  async function switchView(mode: ViewMode) {
+    if (switching) throw Error("A view change is already in progress.");
+    if (active.type === mode) return;
+    switching = true;
+    clearTool();
+    active.closePopup();
+    const previous = active;
+    const center = previous.center?.clone();
+    const scale = previous.scale;
+    try {
+      if (mode === "3d" && !scene) scene = makeScene();
+      const next = mode === "2d" ? view2d : scene!;
+      previous.container = null;
+      active = next;
+      next.container = container;
+      if (center) {
+        next.center = center;
+        next.scale = scale;
+      }
+      updateModeLayers();
+      await readyView(next);
+      if (next.type === "3d")
+        await next.goTo(
+          { target: center, scale, tilt: 62, heading: next.camera.heading },
+          { animate: false },
+        );
+    } catch (error) {
+      active.container = null;
+      if (active.type === "3d") detachFailedScene();
+      active = previous;
+      previous.container = container;
+      updateModeLayers();
+      throw error;
+    } finally {
+      switching = false;
+    }
+  }
+  function setBasemap(id: string) {
+    map.basemap = id as __esri.BasemapProperties;
+    basemapError = "";
+    updateModeLayers();
+    void map.basemap?.loadAll().catch(() => {
+      basemapError =
+        "The selected basemap could not load. Try another basemap or refresh the page.";
+    });
+  }
+  async function mountainView(id = "san-gabriel") {
+    if (active.type !== "3d") await switchView("3d");
+    const place =
+      TERRAIN_PLACES.find((place) => place.id === id) || TERRAIN_PLACES[0];
+    await active.goTo({
+      target: new Point({
+        longitude: place.longitude,
+        latitude: place.latitude,
+      }),
+      zoom: place.zoom,
+      tilt: 65,
+      heading: place.heading,
+    });
+  }
+  async function home() {
+    await active.goTo({
+      target: new Point({ longitude: -120, latitude: 37.6 }),
+      zoom: 6,
+      ...(active.type === "3d" ? { tilt: 40, heading: 0 } : {}),
+    });
+  }
+  function tilt(value: number) {
+    if (active.type === "3d")
+      void active
+        .goTo({ tilt: Math.max(0, Math.min(75, value)) }, { animate: false })
+        .catch(() => {});
+  }
+  function rotate(delta: number) {
+    if (active.type === "3d")
+      void active
+        .goTo(
+          { heading: (active.camera.heading + delta + 360) % 360 },
+          { animate: false },
+        )
+        .catch(() => {});
+  }
+  function north() {
+    if (active.type === "3d")
+      void active.goTo({ heading: 0 }, { animate: false }).catch(() => {});
+  }
   const sketch = new Sketch({
-    view,
+    view: view2d,
     layer: drawings,
     creationMode: "update",
     availableCreateTools: [
@@ -177,21 +437,22 @@ export function createGIS(container: HTMLDivElement) {
     ],
   });
   const measurement = new Measurement({
-    view,
+    view: view2d,
     linearUnit: "miles",
     areaUnit: "square-miles",
   });
   function clearTool() {
     sketch.cancel();
-    view.ui.remove(sketch);
-    view.ui.remove(measurement);
+    view2d.ui.remove(sketch);
+    view2d.ui.remove(measurement);
     measurement.clear();
   }
   async function tool(name: string) {
+    if (toolNeeds2D(name) && active.type !== "2d") await switchView("2d");
     clearTool();
-    if (name === "draw") view.ui.add(sketch, "top-right");
+    if (name === "draw") view2d.ui.add(sketch, "top-right");
     if (name === "distance" || name === "area") {
-      view.ui.add(measurement, "top-right");
+      view2d.ui.add(measurement, "top-right");
       measurement.activeTool = name;
       await whenOnce(
         () =>
@@ -200,20 +461,53 @@ export function createGIS(container: HTMLDivElement) {
       );
     }
   }
+  function applyFireSymbols() {
+    const marker = fireMarker(environment.symbolStyles.fire);
+    const symbol = active.type === "3d" ? terrainMarker(marker) : marker;
+    usaWildfires.renderer = new SimpleRenderer({ symbol });
+    fires.renderer = new SimpleRenderer({ symbol });
+    usaWildfires.elevationInfo = { mode: "relative-to-ground" };
+    fires.elevationInfo = { mode: "relative-to-ground" };
+    environment.selection.graphics.forEach((g) => {
+      if (g.geometry?.type === "point") g.set("symbol", symbol);
+    });
+  }
   function setSymbolStyle(layer: SymbolLayer, style: string) {
     environment.setSymbolStyle(layer, style);
-    if (layer === "fire") {
-      usaWildfires.renderer = new SimpleRenderer({ symbol: fireMarker(style) });
-      fires.renderer = new SimpleRenderer({ symbol: fireMarker(style) });
-      environment.selection.graphics.forEach((graphic) => {
-        if (graphic.geometry?.type === "point")
-          graphic.set("symbol", fireMarker(style));
-      });
-    }
+    if (layer === "fire") applyFireSymbols();
   }
   return {
     map,
-    view,
+    get view() {
+      return active;
+    },
+    get mode() {
+      return active.type as ViewMode;
+    },
+    get cameraState() {
+      return active.type === "3d"
+        ? {
+            tilt: Math.round(active.camera.tilt),
+            heading: Math.round(active.camera.heading),
+          }
+        : { tilt: 0, heading: 0 };
+    },
+    get terrainError() {
+      return terrainError;
+    },
+    get basemapError() {
+      return basemapError;
+    },
+    initialize,
+    switchView,
+    on,
+    setBasemap,
+    mountainView,
+    home,
+    tilt,
+    rotate,
+    north,
+    elevation,
     fires,
     usaWildfires,
     drawings,
@@ -225,7 +519,15 @@ export function createGIS(container: HTMLDivElement) {
       clearTool();
       sketch.destroy();
       measurement.destroy();
-      view.destroy();
+      disposed = true;
+      for (const subscription of subscriptions)
+        subscription.handles.forEach((handle) => handle.remove());
+      subscriptions.clear();
+      view2d.container = null;
+      view2d.map = null;
+      view2d.destroy();
+      detachFailedScene();
+      map.destroy();
     },
   };
 }

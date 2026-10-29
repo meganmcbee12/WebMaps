@@ -1,3 +1,4 @@
+import { terrainMarker } from "./scene-symbols";
 import GraphicsLayer from "@arcgis/core/layers/GraphicsLayer";
 import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Graphic from "@arcgis/core/Graphic";
@@ -9,6 +10,7 @@ import {
   SYMBOL_OPTIONS,
   SMOKE_COLORS,
   airMarker,
+  fireMarker,
   windMarker,
   smokeTile,
   type SymbolLayer,
@@ -55,6 +57,7 @@ function smokeRenderer(style: string) {
 }
 export function createEnvironmentLayers() {
   const symbolStyles = { ...DEFAULT_SYMBOL_STYLES };
+  let sceneMode = false;
   const smoke = new FeatureLayer({
     id: "noaa-smoke",
     url: SMOKE_URL,
@@ -158,7 +161,9 @@ export function createEnvironmentLayers() {
               longitude: p.longitude,
               latitude: p.latitude,
             }),
-            symbol: airMarker(value.aqi, symbolStyles.air),
+            symbol: sceneMode
+              ? terrainMarker(airMarker(value.aqi, symbolStyles.air), "left")
+              : airMarker(value.aqi, symbolStyles.air),
             attributes: {
               name: p.name,
               aqi: Math.round(value.aqi),
@@ -199,7 +204,12 @@ export function createEnvironmentLayers() {
               longitude: p.longitude,
               latitude: p.latitude,
             }),
-            symbol: windMarker(value.speed, value.direction, symbolStyles.wind),
+            symbol: sceneMode
+              ? terrainMarker(
+                  windMarker(value.speed, value.direction, "badges", true),
+                  "right",
+                )
+              : windMarker(value.speed, value.direction, symbolStyles.wind),
             attributes: {
               name: p.name,
               speed: value.speed,
@@ -247,22 +257,98 @@ export function createEnvironmentLayers() {
     if (!SYMBOL_OPTIONS[layer].some((option) => option.value === style))
       throw Error("Unknown symbol style");
     symbolStyles[layer] = style;
-    if (layer === "smoke") smoke.renderer = smokeRenderer(style);
+    if (layer === "smoke")
+      smoke.renderer = smokeRenderer(sceneMode ? "shaded" : style);
     if (layer === "air")
       air.graphics.forEach((graphic) =>
-        graphic.set("symbol", airMarker(graphic.attributes.aqi, style)),
-      );
-    if (layer === "wind")
-      wind.graphics.forEach((graphic) =>
         graphic.set(
           "symbol",
-          windMarker(
-            graphic.attributes.speed,
-            graphic.attributes.direction,
-            style,
-          ),
+          sceneMode
+            ? terrainMarker(airMarker(graphic.attributes.aqi, style), "left")
+            : airMarker(graphic.attributes.aqi, style),
         ),
       );
+    if (layer === "wind")
+      wind.graphics.forEach((g) =>
+        g.set(
+          "symbol",
+          sceneMode
+            ? terrainMarker(
+                windMarker(
+                  g.attributes.speed,
+                  g.attributes.direction,
+                  "badges",
+                  true,
+                ),
+                "right",
+              )
+            : windMarker(g.attributes.speed, g.attributes.direction, style),
+        ),
+      );
+  }
+  function setSceneMode(enabled: boolean) {
+    sceneMode = enabled;
+    air.graphics.forEach((g) =>
+      g.set(
+        "symbol",
+        enabled
+          ? terrainMarker(airMarker(g.attributes.aqi, symbolStyles.air), "left")
+          : airMarker(g.attributes.aqi, symbolStyles.air),
+      ),
+    );
+    wind.graphics.forEach((g) =>
+      g.set(
+        "symbol",
+        enabled
+          ? terrainMarker(
+              windMarker(
+                g.attributes.speed,
+                g.attributes.direction,
+                "badges",
+                true,
+              ),
+              "right",
+            )
+          : windMarker(
+              g.attributes.speed,
+              g.attributes.direction,
+              symbolStyles.wind,
+            ),
+      ),
+    );
+    selection.graphics.forEach((g) => {
+      if (g.geometry?.type === "point")
+        g.set(
+          "symbol",
+          enabled
+            ? terrainMarker(fireMarker(symbolStyles.fire))
+            : fireMarker(symbolStyles.fire),
+        );
+    });
+    smoke.renderer = smokeRenderer(enabled ? "shaded" : symbolStyles.smoke);
+    perimeters.renderer = {
+      type: "simple",
+      symbol: {
+        type: "simple-fill",
+        color: enabled ? [139, 48, 23, 0.2] : [179, 8, 36, 0.1],
+        outline: {
+          color: enabled ? "#ffad50" : "#b30824",
+          width: enabled ? 2.5 : 1.7,
+        },
+      },
+    };
+    for (const layer of [analysis, selection])
+      layer.elevationInfo = { mode: "on-the-ground" };
+    air.elevationInfo = { mode: "relative-to-ground" };
+    wind.elevationInfo = { mode: "relative-to-ground" };
+    selection.elevationInfo = {
+      mode:
+        selection.graphics.getItemAt(0)?.geometry?.type === "point"
+          ? "relative-to-ground"
+          : "on-the-ground",
+    };
+    smoke.elevationInfo = { mode: "on-the-ground" };
+    perimeters.elevationInfo = { mode: "on-the-ground" };
   }
   async function markPlace(place: Place, radius: number, signal?: AbortSignal) {
     const point = new Point({
@@ -298,6 +384,7 @@ export function createEnvironmentLayers() {
     );
   }
   function selectBoundary(boundary: Boundary) {
+    selection.elevationInfo = { mode: "on-the-ground" };
     const geometry = new Polygon({
       rings: boundary.rings,
       spatialReference: { wkid: 4326 },
@@ -309,7 +396,7 @@ export function createEnvironmentLayers() {
         symbol: {
           type: "simple-fill",
           color: [179, 8, 36, 0.18],
-          outline: { color: "#b30824", width: 3 },
+          outline: { color: sceneMode ? "#ffad50" : "#b30824", width: 3 },
         },
       }),
     );
@@ -317,6 +404,7 @@ export function createEnvironmentLayers() {
   }
   return {
     symbolStyles,
+    setSceneMode,
     setSymbolStyle,
     smoke,
     perimeters,

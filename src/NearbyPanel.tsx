@@ -1,3 +1,4 @@
+import { terrainMarker } from "./scene-symbols";
 import { useEffect, useRef, useState } from "react";
 import {
   Search,
@@ -49,13 +50,20 @@ type LayerKey = "smoke" | "air" | "wind" | "perimeters";
 export default function NearbyPanel({
   gis,
   chooseTool,
+  scene = false,
 }: {
   gis: GIS;
+  scene?: boolean;
   chooseTool: (mode: string) => Promise<void>;
 }) {
   const [symbolStyles, setSymbolStyles] = useState({
     ...gis.environment.symbolStyles,
   });
+  const effectiveStyles = {
+    ...symbolStyles,
+    smoke: scene ? "shaded" : symbolStyles.smoke,
+    wind: scene ? "badges" : symbolStyles.wind,
+  };
   function changeSymbols(layer: SymbolLayer, style: string) {
     gis.setSymbolStyle(layer, style);
     setSymbolStyles((previous) => ({ ...previous, [layer]: style }));
@@ -104,13 +112,19 @@ export default function NearbyPanel({
     setLimit(10);
     void chooseTool("explore");
     void gis.view
-      .goTo({ center: [value.longitude, value.latitude], zoom: 10 })
+      .goTo({
+        target: new Point({
+          longitude: value.longitude,
+          latitude: value.latitude,
+        }),
+        zoom: 10,
+      })
       .catch(() => {});
     gis.environment.perimeters.visible = true;
     setVisible((v) => ({ ...v, perimeters: true }));
   }
   useEffect(() => {
-    const handle = gis.view.on("click", (event) => {
+    const handle = gis.on("click", (event) => {
       if (gis.view.container?.getAttribute("data-tool") !== "place") return;
       const point = event.mapPoint;
       if (!point) return;
@@ -260,11 +274,14 @@ export default function NearbyPanel({
       ? gis.environment.selectBoundary(fire.boundary)
       : new Point({ longitude: fire.point![0], latitude: fire.point![1] });
     if (!fire.boundary) {
+      gis.environment.selection.elevationInfo = { mode: "relative-to-ground" };
       gis.environment.selection.removeAll();
       gis.environment.selection.add(
         new Graphic({
           geometry,
-          symbol: fireMarker(gis.environment.symbolStyles.fire),
+          symbol: scene
+            ? terrainMarker(fireMarker(gis.environment.symbolStyles.fire))
+            : fireMarker(gis.environment.symbolStyles.fire),
         }),
       );
     }
@@ -340,7 +357,11 @@ export default function NearbyPanel({
       <p className="nearby-intro">
         Find reported fires near a California address or town.
       </p>
-      <MapSymbolControls styles={symbolStyles} onChange={changeSymbols} />
+      <MapSymbolControls
+        styles={effectiveStyles}
+        scene={scene}
+        onChange={changeSymbols}
+      />
       <p className="fire-symbol-key">
         <img src={symbolPreview("fire", symbolStyles.fire)} alt="" /> Reported
         fire location <span className="perimeter-symbol-key" /> Reported
@@ -636,7 +657,7 @@ export default function NearbyPanel({
             <span key={density} className="smoke-swatch">
               <span
                 style={
-                  symbolStyles.smoke === "clouds"
+                  effectiveStyles.smoke === "clouds"
                     ? {
                         backgroundImage: `url("${smokeTile(density)}")`,
                         backgroundSize: "32px 32px",
@@ -680,9 +701,11 @@ export default function NearbyPanel({
       )}
       {visible.wind && (
         <p className="nearby-muted">
-          {symbolStyles.wind === "arrows"
-            ? "Blue arrows point where the wind is blowing; larger arrows mean stronger wind."
-            : "Wind badges show rounded speed in mph; the small arrow points where the wind is blowing."}{" "}
+          {scene
+            ? "Wind badges show rounded mph; compass direction is available in each sample popup."
+            : symbolStyles.wind === "arrows"
+              ? "Blue arrows point where the wind is blowing; larger arrows mean stronger wind."
+              : "Wind badges show rounded speed in mph; the small arrow points where the wind is blowing."}{" "}
           An open circle means less than 1 mph. Select a sample for details.
         </p>
       )}

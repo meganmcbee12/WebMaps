@@ -14,8 +14,10 @@ const labels: Record<SymbolLayer, string> = {
 export default function MapSymbolControls({
   styles,
   onChange,
+  scene = false,
 }: {
   styles: Record<SymbolLayer, string>;
+  scene?: boolean;
   onChange: (layer: SymbolLayer, style: string) => void;
 }) {
   return (
@@ -29,11 +31,12 @@ export default function MapSymbolControls({
         <p>Choose a look for each dataset. Previews use example values.</p>
         {(Object.keys(labels) as SymbolLayer[]).map((layer) => (
           <label key={layer}>
-            <img src={symbolPreview(layer, styles[layer])} alt="" />
+            <img src={symbolPreview(layer, styles[layer], scene)} alt="" />
             <span>
               {labels[layer]}
               <select
                 aria-label={`${labels[layer]} symbols`}
+                disabled={scene && (layer === "smoke" || layer === "wind")}
                 value={styles[layer]}
                 onChange={(event) => onChange(layer, event.target.value)}
               >
@@ -46,6 +49,12 @@ export default function MapSymbolControls({
             </span>
           </label>
         ))}
+        {scene && (
+          <p>
+            3D uses shaded smoke footprints and wind-speed badges. Switch to 2D
+            for cloud patterns and direction arrows.
+          </p>
+        )}
         <button
           className="reset-symbols"
           onClick={() => {

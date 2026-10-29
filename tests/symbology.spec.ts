@@ -147,7 +147,7 @@ test("changes dataset symbols in place, updates legends and resets defaults", as
       });
     });
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });

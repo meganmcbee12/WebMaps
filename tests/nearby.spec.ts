@@ -89,7 +89,7 @@ test("searches a place, measures a real boundary, inspects conditions and toggle
         json: count === 1 ? value : Array.from({ length: count }, () => value),
       });
     });
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
@@ -167,7 +167,7 @@ test("empty perimeter results and failed conditions do not report zero pollution
     "**/NOAA_Satellite_Smoke_Detection_*/FeatureServer/0/query?**",
     (route) => route.fulfill({ status: 503, body: "Unavailable" }),
   );
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
@@ -291,7 +291,7 @@ test("includes fires without perimeters and opens their location-distance popup"
       });
     },
   );
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });

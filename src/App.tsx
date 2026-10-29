@@ -1,3 +1,4 @@
+import Point from "@arcgis/core/geometry/Point";
 import { useEffect, useRef, useState } from "react";
 import NearbyPanel from "./NearbyPanel";
 import {
@@ -24,6 +25,9 @@ import {
   Check,
   Info,
   LoaderCircle,
+  RotateCcw,
+  RotateCw,
+  Compass,
 } from "lucide-react";
 import {
   createGIS,
@@ -32,11 +36,27 @@ import {
   locations,
   nearestFire,
 } from "./gis";
+import {
+  initialViewMode,
+  toolNeeds2D,
+  TERRAIN_PLACES,
+  type ViewMode,
+} from "./scene-config";
+import "./scene.css";
 type GIS = ReturnType<typeof createGIS>;
 type Row = { id: string; title: string; visible: boolean; kind: string };
 export default function App() {
   const container = useRef<HTMLDivElement>(null),
     gis = useRef<GIS | null>(null);
+  const [drawingCount, setDrawingCount] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>(() =>
+    initialViewMode(location.search),
+  );
+  const [viewChanging, setViewChanging] = useState(false),
+    [viewNotice, setViewNotice] = useState(""),
+    [terrainNotice, setTerrainNotice] = useState(""),
+    [cameraTilt, setCameraTilt] = useState(62),
+    [cameraHeading, setCameraHeading] = useState(35);
   const [ready, setReady] = useState(false),
     [error, setError] = useState(""),
     [collapsed, setCollapsed] = useState(false),
@@ -49,14 +69,15 @@ export default function App() {
     [url, setUrl] = useState(""),
     [loading, setLoading] = useState(false),
     [tool, setTool] = useState("explore"),
-    [basemap, setBasemap] = useState("osm"),
+    [basemap, setBasemap] = useState(viewMode === "3d" ? "satellite" : "osm"),
     [rows, setRows] = useState<Row[]>([]),
     [coords, setCoords] = useState("37.600° N  120.000° W"),
+    [elevationLabel, setElevationLabel] = useState("Terrain elevation"),
     [distance, setDistance] = useState(""),
     [selected, setSelected] = useState<(typeof locations)[number] | null>(null);
   useEffect(() => {
     if (!container.current) return;
-    const instance = createGIS(container.current);
+    const instance = createGIS(container.current, viewMode);
     gis.current = instance;
     instance.usaWildfires
       .load()
@@ -69,8 +90,11 @@ export default function App() {
           "USA Wildfires could not load. The public service may be unavailable; refresh to try again.",
         ),
       );
-    instance.view
-      .when(() => {
+    instance
+      .initialize()
+      .then((notice) => {
+        if (notice) setViewNotice(notice);
+        setViewMode(instance.mode);
         setReady(true);
         setRows([
           {
@@ -88,14 +112,23 @@ export default function App() {
         ]);
       })
       .catch((e) => setError(`Map could not start: ${e.message}`));
-    const move = instance.view.on("pointer-move", (e) => {
-      const p = instance.view.toMap({ x: e.x, y: e.y });
+    const drawingChanges = instance.drawings.graphics.on("change", () =>
+      setDrawingCount(instance.drawings.graphics.length),
+    );
+    const move = instance.on("pointer-move", (e) => {
+      const p = e.mapPoint;
+      if (p && instance.mode === "3d")
+        setElevationLabel(
+          !instance.terrainError && Number.isFinite(p.z)
+            ? `Elevation ${Math.round(p.z!).toLocaleString()} m`
+            : "Elevation unavailable",
+        );
       if (p)
         setCoords(
           `${Math.abs(p.latitude ?? 0).toFixed(3)}° ${(p.latitude ?? 0) >= 0 ? "N" : "S"}  ${Math.abs(p.longitude ?? 0).toFixed(3)}° ${(p.longitude ?? 0) >= 0 ? "E" : "W"}`,
         );
     });
-    const click = instance.view.on("click", async (e) => {
+    const click = instance.on("click", async (e) => {
       const mode = container.current?.getAttribute("data-tool");
       if (mode === "nearby") {
         const p = e.mapPoint;
@@ -140,14 +173,31 @@ export default function App() {
         if (!instance.view.destroyed)
           await instance.view.openPopup({
             features: [feature],
-            location: hit.mapPoint || e.mapPoint,
+            location: hit.mapPoint || e.mapPoint || undefined,
           });
       } catch (error) {
         if (error instanceof Error && error.name !== "AbortError")
           console.warn("Fire selection unavailable", error);
       }
     });
+    const observedNotices = { terrain: "", basemap: "" };
+    const notices = setInterval(() => {
+      if (observedNotices.terrain !== instance.terrainError) {
+        observedNotices.terrain = instance.terrainError;
+        setTerrainNotice(instance.terrainError);
+      }
+      if (instance.mode === "3d") {
+        setCameraTilt(instance.cameraState.tilt);
+        setCameraHeading(instance.cameraState.heading);
+      }
+      if (observedNotices.basemap !== instance.basemapError) {
+        observedNotices.basemap = instance.basemapError;
+        if (instance.basemapError) setViewNotice(instance.basemapError);
+      }
+    }, 1000);
     return () => {
+      clearInterval(notices);
+      drawingChanges.remove();
       move.remove();
       click.remove();
       instance.destroy();
@@ -155,6 +205,9 @@ export default function App() {
     };
   }, []);
   async function chooseTool(value: string) {
+    const previousMode = gis.current?.mode;
+    const changing = toolNeeds2D(value) && previousMode === "3d";
+    if (changing) setViewChanging(true);
     setTool(value);
     setDistance("");
     if (gis.current) {
@@ -164,11 +217,62 @@ export default function App() {
     container.current?.removeAttribute("data-tool-ready");
     try {
       await gis.current?.tool(value);
+      if (gis.current) {
+        if (gis.current.mode !== previousMode && toolNeeds2D(value))
+          setViewNotice(
+            "Drawing and measurement use 2D. Your layers and place are preserved; select 3D terrain to return.",
+          );
+        setViewMode(gis.current.mode);
+      }
       container.current?.setAttribute("data-tool-ready", value);
     } catch {
       setError("This tool could not start. Please select it again.");
     }
     container.current?.setAttribute("data-tool", value);
+    if (changing) setViewChanging(false);
+  }
+  async function changeView(mode: ViewMode) {
+    if (!gis.current || viewChanging) return;
+    setViewChanging(true);
+    setViewNotice("");
+    setTool("explore");
+    setDistance("");
+    try {
+      await gis.current.switchView(mode);
+      setViewMode(gis.current.mode);
+      container.current?.setAttribute("data-tool", "explore");
+    } catch (error) {
+      setViewNotice(
+        error instanceof Error
+          ? error.message
+          : "The requested view could not start.",
+      );
+      setViewMode(gis.current.mode);
+    } finally {
+      setViewChanging(false);
+    }
+  }
+  async function showMountains(id = "san-gabriel") {
+    if (!gis.current) return;
+    setViewChanging(true);
+    setTool("explore");
+    gis.current.clearTool();
+    gis.current.view.closePopup();
+    container.current?.setAttribute("data-tool", "explore");
+    container.current?.setAttribute("data-tool-ready", "explore");
+    try {
+      await gis.current.mountainView(id);
+      setViewMode(gis.current.mode);
+      setCameraTilt(65);
+    } catch (error) {
+      setViewNotice(
+        error instanceof Error
+          ? error.message
+          : "The terrain view could not open.",
+      );
+    } finally {
+      setViewChanging(false);
+    }
   }
   async function addLayer(value: string, title?: string) {
     setLoading(true);
@@ -236,10 +340,16 @@ export default function App() {
   }
   function focus(f: (typeof locations)[number]) {
     setSelected(f);
-    gis.current?.view.goTo({ center: [f.x, f.y], zoom: 10 }).catch(() => {});
+    gis.current?.view
+      .goTo({ target: new Point({ longitude: f.x, latitude: f.y }), zoom: 10 })
+      .catch(() => {});
   }
   return (
-    <div className="app">
+    <div
+      className="app"
+      data-view-mode={viewMode}
+      data-sidebar-collapsed={collapsed}
+    >
       <header>
         <a className="brand" href="/">
           <span className="brand-mark">
@@ -286,15 +396,9 @@ export default function App() {
               <small>36.7783° N, 119.4179° W</small>
             </div>
             <div className="eyebrow">THE GOLDEN STATE</div>
-            <h1>
-              A clearer view
-              <br />
-              of wildfire.
-            </h1>
+            <h1>California Wildfire Explorer</h1>
             <p className="intro">
-              Explore California’s fire landscape.
-              <br />
-              Add your data. Find your perspective.
+              Reported fires, smoke, and conditions in context.
             </p>
             <div className="tabs">
               <button
@@ -348,7 +452,12 @@ export default function App() {
                       </span>
                       <div>
                         <strong>{row.title}</strong>
-                        <small>{row.kind}</small>
+                        <small>
+                          {row.kind}
+                          {row.kind === "SKETCH LAYER"
+                            ? ` · ${drawingCount} ${drawingCount === 1 ? "feature" : "features"}`
+                            : ""}
+                        </small>
                       </div>
                       <button
                         className="icon-button visibility"
@@ -482,7 +591,11 @@ export default function App() {
             ) : null}
             {ready && gis.current && (
               <div hidden={tab !== "nearby"}>
-                <NearbyPanel gis={gis.current} chooseTool={chooseTool} />
+                <NearbyPanel
+                  gis={gis.current}
+                  chooseTool={chooseTool}
+                  scene={viewMode === "3d"}
+                />
               </div>
             )}
             <div className="sidebar-footer">
@@ -505,7 +618,124 @@ export default function App() {
           </button>
         )}
         <section className="map-panel" aria-label="Interactive California map">
-          <div className="map" ref={container} />
+          <div className="map" ref={container} data-view-mode={viewMode} />
+          <div className="view-controls">
+            <div
+              className="view-mode-switch"
+              role="group"
+              aria-label="Map perspective"
+            >
+              <button
+                disabled={!ready || viewChanging}
+                aria-pressed={viewMode === "2d"}
+                onClick={() => void changeView("2d")}
+              >
+                2D map
+              </button>
+              <button
+                disabled={!ready || viewChanging}
+                aria-pressed={viewMode === "3d"}
+                onClick={() => void changeView("3d")}
+              >
+                <Mountain size={16} />
+                3D terrain
+              </button>
+            </div>
+            {viewMode === "3d" && (
+              <details className="scene-camera">
+                <summary>
+                  <Compass size={16} /> View controls
+                </summary>
+                <div>
+                  <label>
+                    Mountain view
+                    <select
+                      aria-label="Mountain view"
+                      disabled={viewChanging}
+                      defaultValue="san-gabriel"
+                      onChange={(event) =>
+                        void showMountains(event.target.value)
+                      }
+                    >
+                      {TERRAIN_PLACES.map((place) => (
+                        <option key={place.id} value={place.id}>
+                          {place.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    className="mountain-reset"
+                    disabled={viewChanging}
+                    onClick={() => void showMountains()}
+                  >
+                    <Mountain size={16} /> San Gabriel view
+                  </button>
+                  <label>
+                    Tilt · {cameraTilt}°
+                    <input
+                      aria-label="Camera tilt"
+                      type="range"
+                      min="0"
+                      max="75"
+                      value={cameraTilt}
+                      onChange={(event) => {
+                        const value = Number(event.target.value);
+                        setCameraTilt(value);
+                        gis.current?.tilt(value);
+                      }}
+                    />
+                  </label>
+                  <div className="camera-actions">
+                    <button
+                      aria-label="Rotate view left"
+                      onClick={() => gis.current?.rotate(-15)}
+                    >
+                      <RotateCcw size={17} />
+                    </button>
+                    <button
+                      aria-label="Face north"
+                      onClick={() => gis.current?.north()}
+                    >
+                      <Compass size={17} /> North
+                    </button>
+                    <button
+                      aria-label="Rotate view right"
+                      onClick={() => gis.current?.rotate(15)}
+                    >
+                      <RotateCw size={17} />
+                    </button>
+                  </div>
+                  <p className="camera-heading">Heading {cameraHeading}°</p>
+                  <p>
+                    Drag to pan. Right-drag to tilt or rotate; on touch, use two
+                    fingers. Satellite imagery is draped over real terrain
+                    elevations.
+                  </p>
+                </div>
+              </details>
+            )}
+          </div>
+          {(viewNotice || (viewMode === "3d" && terrainNotice)) && (
+            <div className="view-notice" role="status">
+              {viewNotice || terrainNotice}
+              <button
+                aria-label="Dismiss view notice"
+                onClick={() => {
+                  setViewNotice("");
+                  setTerrainNotice("");
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          )}
+          {viewChanging && (
+            <div className="view-loading" role="status">
+              <LoaderCircle className="spin" size={18} /> Changing map
+              perspective…
+            </div>
+          )}
           {showTools ? (
             <div className="map-tools" role="toolbar" aria-label="Map tools">
               {[
@@ -524,7 +754,7 @@ export default function App() {
                 },
               ].map((t) => (
                 <button
-                  disabled={!ready}
+                  disabled={!ready || viewChanging}
                   key={t.id}
                   className={tool === t.id ? "active" : ""}
                   title={t.label}
@@ -592,11 +822,7 @@ export default function App() {
             <button
               aria-label="Return to California"
               title="Return to California"
-              onClick={() =>
-                gis.current?.view
-                  .goTo({ center: [-120, 37.6], zoom: 6 })
-                  .catch(() => {})
-              }
+              onClick={() => gis.current?.home().catch(() => {})}
             >
               <Navigation size={18} />
             </button>
@@ -639,7 +865,7 @@ export default function App() {
                     className={basemap === b.id ? "selected" : ""}
                     onClick={() => {
                       setBasemap(b.id);
-                      if (gis.current) gis.current.map.basemap = b.id as any;
+                      gis.current?.setBasemap(b.id);
                     }}
                   >
                     <span className={"basemap-thumb " + b.cls}>
@@ -684,7 +910,7 @@ export default function App() {
               {ready ? "EXPLORER READY" : "CONNECTING"}
             </span>
             <span>{coords}</span>
-            <span>WGS 84</span>
+            <span>{viewMode === "3d" ? elevationLabel : "WGS 84"}</span>
           </div>
         </section>
       </main>

@@ -15,7 +15,7 @@ Open `http://localhost:5173` in a browser on your own computer. In a remote deve
 
 ## Explore
 
-- **USA Wildfires** is visible automatically on opening the map, using [this public feature layer](https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0). Flame icons identify reported incident locations (they do not encode containment); simple circles are also available. Its original attributes are available in popups, and it refreshes every five minutes. Coverage and freshness are determined by the provider. The map still opens on California; zoom out to explore the national data.
+- **USA Wildfires** is visible automatically on opening the map, using [this public feature layer](https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0). Flame icons identify reported incident locations (they do not encode containment); simple circles are also available. Its original attributes are available in popups, and it refreshes every five minutes. Coverage and freshness are determined by the provider. The map opens in California; zoom out to explore the national data.
 - Pan, zoom, and switch Streets (OpenStreetMap), Satellite, or Terrain basemaps.
 - Close the sidebar, tools, or basemap chooser with their **X** buttons; use the Layers, Tools, or Basemaps buttons to reopen them. Tools sit at the upper right; closing them returns the map to Explore mode.
 - Toggle layers in the sidebar; add public ArcGIS layer URLs ending in `/FeatureServer/<number>`, a public GeoJSON URL, or a local GeoJSON file. Remote services must permit anonymous access and CORS; additional cloud network domains may need approval.
@@ -27,7 +27,7 @@ Open `http://localhost:5173` in a browser on your own computer. In a remote deve
 
 ## Nearby fires, smoke, air quality and wind
 
-The **Nearby** tab opens by default on the map. Search for a California town or full street address, or pick a location directly on the map. Choose a 10, 25, 50 or 100 mile radius. Selecting a nearby fire highlights and zooms to its matched boundary or reported location.
+The **Nearby** tab opens by default on the map in both 2D and 3D. Search for a California town or full street address, or pick a location directly on the map. Choose a 10, 25, 50 or 100 mile radius. Selecting a nearby fire highlights and zooms to its matched boundary or reported location.
 
 - The list combines USA Wildfires incident locations inside the search circle with WFIGS boundaries intersecting it. Shared IRWIN IDs match incidents across services (case and braces are normalized); matching uses IDs rather than potentially ambiguous names. A published boundary takes precedence, including when a location inside the circle has a boundary outside it. Otherwise, the result is labeled **distance to reported location** and **boundary not matched**. Boundary-only incidents remain in the list, and matched incidents appear once.
 - Distances are approximate spherical geodesic distances, not driving distances or estimates of fire arrival. Locations inside matched polygons are labeled separately. Provider failures preserve results from the available source and display a partial-data warning; an empty list does not mean no fires. Both feeds depend on provider coverage and update timing.
@@ -38,6 +38,18 @@ The **Nearby** tab opens by default on the map. Search for a California town or 
 - Town search uses GeoNames through Open-Meteo. Full street addresses use the US Census Geocoder through `/api/geocode`, a small same-origin server endpoint. Searches go to the relevant provider; the application does not store search history or cache address responses. Picking a point requires no geocoding provider.
 
 Run `npm run test:gis` with Node 24 to test distance calculations, polygon holes, AQI categories, geocoder filtering, incomplete perimeter responses and model units/missing values. `tests/nearby.spec.ts` exercises the panel with intercepted provider responses; fixture tests do not establish live provider uptime.
+
+## 3D satellite terrain
+
+`/map` now opens in an angled **3D terrain** view of California's San Gabriel Mountains, inspired by a satellite terrain workspace. It uses the ArcGIS SceneView, public Esri World Imagery, and the public [WorldElevation3D Terrain3D service](https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer). No paid API key is required for these initial services. Satellite image acquisition dates and terrain detail depend on the providers; imagery is not a live wildfire feed.
+
+- Use **2D map / 3D terrain** to change perspective. Both views share the same layers, imports, drawings, selected place, radius and nearby results. Current reported perimeters are visible by default in the 3D entry view.
+- **View controls** offers tilt, rotation, North, and mountain presets for the San Gabriel Mountains, Sierra Nevada and Lake Tahoe. **Return to California** restores a statewide overview.
+- Drawing and measurement tools automatically open 2D at your current area. Their completed drawings remain in the shared map when returning to 3D. Nearby boundary/location distances still use the same geodesic calculations in either view.
+- In 3D, fire and modeled-weather markers are screen-sized billboards. Smoke is shown as shaded NOAA plume footprints draped over terrain, not invented smoke-column heights. Wind badges show mph; the popup gives the geographic direction FROM. Patterned smoke and directional wind arrows remain available in 2D.
+- If 3D cannot initialize, the application falls back to 2D. Elevation-service failures are reported instead of presenting flat terrain as verified relief. Legacy links and 2D-specific tests can use `/map?view=2d`.
+
+Cloud development needs `elevation3d.arcgis.com` in its allowed domains. A saved environment draft must be reviewed/saved and published before it establishes that access. Browser scene tests use an explicitly synthetic LERC elevation fixture under `tests/fixtures/`; it never ships as application elevation data. Fixture success does not establish live elevation access.
 
 ## Map symbol options
 

@@ -59,3 +59,9 @@ test("every default style is available in its dataset selector", () => {
   for (const [layer, style] of Object.entries(DEFAULT_SYMBOL_STYLES))
     assert.ok(SYMBOL_OPTIONS[layer].some((option) => option.value === style));
 });
+
+test("3D wind badges show speed without a screen-relative compass arrow", () => {
+  const source = svg(windMarker(12, 270, "arrows", true));
+  assert.match(source, /12 mph/);
+  assert.doesNotMatch(source, /rotate\(/);
+});

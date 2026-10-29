@@ -1,0 +1,243 @@
+.view-controls {
+  position: absolute;
+  top: 24px;
+  left: 20px;
+  z-index: 3;
+  max-width: 240px;
+}
+.view-mode-switch {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  background: #fffef9ee;
+  border: 1px solid #e0d6c7;
+  border-radius: 9px;
+  box-shadow: 0 4px 18px #262b241c;
+}
+.view-mode-switch button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  padding: 10px 13px;
+  background: transparent;
+  color: #535049;
+  border-radius: 5px;
+}
+.view-mode-switch button[aria-pressed="true"] {
+  background: #8c3023;
+  color: #fff9ed;
+}
+.scene-camera {
+  margin-top: 9px;
+  background: #fffef9ee;
+  border: 1px solid #e0d6c7;
+  border-radius: 8px;
+  box-shadow: 0 4px 18px #262b2415;
+  color: #4c483f;
+}
+.scene-camera summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 12px;
+  font-size: 13px;
+  list-style: none;
+}
+.scene-camera summary:after {
+  content: "+";
+  margin-left: auto;
+}
+.scene-camera[open] summary:after {
+  content: "−";
+}
+.scene-camera > div {
+  padding: 0 12px 12px;
+}
+.scene-camera label {
+  display: block;
+  font-size: 13px;
+  margin-top: 12px;
+}
+.scene-camera select {
+  display: block;
+  width: 100%;
+  font-size: 13px;
+  padding: 8px;
+  margin-top: 5px;
+  background: white;
+  border: 1px solid #dcd3c7;
+  border-radius: 5px;
+  color: #4c483f;
+}
+.scene-camera input {
+  display: block;
+  width: 100%;
+  accent-color: #a84c28;
+  margin-top: 8px;
+}
+.scene-camera p {
+  font-size: 12px;
+  line-height: 1.65;
+  color: #787064;
+  margin: 10px 0 0;
+}
+.mountain-reset {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  padding: 9px 0;
+  background: none;
+  color: #9b4529;
+}
+.camera-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  gap: 8px;
+}
+.camera-actions button {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #f1ebe1;
+  border-radius: 5px;
+  padding: 8px;
+  font-size: 12px;
+  color: #685543;
+}
+.view-notice {
+  position: absolute;
+  bottom: 42px;
+  left: 20px;
+  max-width: min(500px, calc(100% - 40px));
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 15px;
+  background: #fff8ebf2;
+  border: 1px solid #dcc9a9;
+  border-radius: 7px;
+  color: #7d5327;
+  font-size: 13px;
+  line-height: 1.6;
+  z-index: 4;
+}
+.view-notice button {
+  background: none;
+  color: inherit;
+  flex-shrink: 0;
+}
+.view-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: #ebe2d546;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  color: #543f2d;
+  pointer-events: auto;
+}
+.app[data-view-mode="3d"] .perimeter-symbol-key {
+  border-color: #ffad50;
+  background: #8b301733;
+}
+.app[data-view-mode="3d"] .map {
+  background: #c9b799;
+}
+@media (max-width: 700px) {
+  .view-controls {
+    top: 16px;
+    left: 15px;
+    max-width: 220px;
+  }
+  .view-mode-switch button {
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+  .app[data-view-mode="3d"] .map-tools,
+  .app[data-view-mode="3d"] .tools-reopen {
+    top: 120px;
+  }
+  .scene-camera[open] {
+    max-height: 55vh;
+    overflow: auto;
+  }
+  .view-notice {
+    left: 15px;
+    font-size: 12px;
+    bottom: 35px;
+    max-width: calc(100% - 30px);
+  }
+}
+
+.sidebar h1 {
+  font-size: 29px;
+  line-height: 1.23;
+  letter-spacing: -1px;
+  margin: 15px 0 12px;
+}
+.sidebar .intro {
+  font-size: 15px;
+  line-height: 1.7;
+  margin-bottom: 24px;
+}
+.app[data-view-mode="3d"] .sidebar-inner {
+  background: #fbf8f1;
+  color: #38372e;
+}
+.app[data-view-mode="3d"] .tabs button.active {
+  color: #9a4c2d;
+  border-bottom-color: #9a4c2d;
+}
+.app[data-view-mode="3d"] .map-tools button.active {
+  background: #8c3023;
+  color: #fff9ed;
+}
+.camera-heading {
+  font-variant-numeric: tabular-nums;
+}
+
+.app[data-sidebar-collapsed="true"] .view-controls {
+  left: 126px;
+}
+@media (max-width: 700px) {
+  .scene-camera[open] {
+    overflow: visible;
+    max-height: none;
+  }
+  .scene-camera[open] > div {
+    position: absolute;
+    top: 170px;
+    left: 0;
+    width: 220px;
+    max-height: calc(100dvh - 270px);
+    overflow: auto;
+    padding: 0 12px 12px;
+    background: #fffef9f5;
+    border: 1px solid #e0d6c7;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px #262b2430;
+  }
+  .app[data-sidebar-collapsed="true"] .scene-camera[open] > div {
+    left: -110px;
+  }
+}
+
+.esri-view .esri-attribution {
+  bottom: 30px !important;
+  font-size: 10px !important;
+}
+.map-bottom {
+  font-size: 11px;
+  letter-spacing: 0.1px;
+  color: #676b63;
+}
+.map-bottom > span:first-child {
+  font-size: 10px;
+}

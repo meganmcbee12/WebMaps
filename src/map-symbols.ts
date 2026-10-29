@@ -73,10 +73,15 @@ export function airMarker(aqi: number, style: string) {
     ),
   };
 }
-export function windMarker(speed: number, from: number, style: string) {
+export function windMarker(
+  speed: number,
+  from: number,
+  style: string,
+  scene = false,
+) {
   const towards = (((from + 180) % 360) + 360) % 360;
   const calm = speed < 1;
-  if (style === "badges")
+  if (style === "badges" || scene)
     return {
       type: "picture-marker" as const,
       width: 48,
@@ -84,7 +89,7 @@ export function windMarker(speed: number, from: number, style: string) {
       xoffset: 24,
       angle: 0,
       url: svg(
-        `<rect x="2" y="2" width="60" height="60" rx="14" fill="white" stroke="#234d73" stroke-width="2"/><g transform="translate(0 -1)">${windLines}</g>${calm ? '<circle cx="52" cy="14" r="5" fill="none" stroke="#234d73" stroke-width="2"/>' : `<path d="M52 21V7m-5 5 5-5 5 5" fill="none" stroke="#234d73" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(${towards} 52 14)"/>`}<text x="32" y="55" text-anchor="middle" fill="#234d73" font-family="sans-serif" font-weight="bold" font-size="${speed >= 100 ? 13 : 16}">${calm ? "&lt;1 mph" : `${Math.round(speed)} mph`}</text>`,
+        `<rect x="2" y="2" width="60" height="60" rx="14" fill="white" stroke="#234d73" stroke-width="2"/><g transform="translate(0 -1)">${windLines}</g>${scene ? "" : calm ? '<circle cx="52" cy="14" r="5" fill="none" stroke="#234d73" stroke-width="2"/>' : `<path d="M52 21V7m-5 5 5-5 5 5" fill="none" stroke="#234d73" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" transform="rotate(${towards} 52 14)"/>`}<text x="32" y="55" text-anchor="middle" fill="#234d73" font-family="sans-serif" font-weight="bold" font-size="${speed >= 100 ? 13 : 16}">${calm ? "&lt;1 mph" : `${Math.round(speed)} mph`}</text>`,
       ),
     };
   return {
@@ -111,7 +116,11 @@ export function smokeTile(density: keyof typeof SMOKE_COLORS) {
     `<rect width="64" height="64" fill="${color}" fill-opacity="${density === "Light" ? 0.13 : density === "Medium" ? 0.25 : 0.42}"/><g stroke="${color}" stroke-width="2.5" fill="white" fill-opacity=".55" stroke-linecap="round"><path d="M19 37h26a9 9 0 0 0 0-18 14 14 0 0 0-26-2 10 10 0 0 0 0 20Z"/><path d="M17 44h28m-23 6h18" fill="none"/></g>`,
   );
 }
-export function symbolPreview(layer: SymbolLayer, style: string) {
+export function symbolPreview(
+  layer: SymbolLayer,
+  style: string,
+  scene = false,
+) {
   if (layer === "fire")
     return style === "flames"
       ? svg(flame)
@@ -132,5 +141,5 @@ export function symbolPreview(layer: SymbolLayer, style: string) {
           '<circle cx="32" cy="32" r="21" fill="#218343" stroke="white" stroke-width="3"/>',
         );
   }
-  return windMarker(12, 270, style).url;
+  return windMarker(12, 270, style, scene).url;
 }

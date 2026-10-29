@@ -12,7 +12,7 @@
     "prebuild": "node scripts/copy-assets.mjs && node scripts/update-calfire.mjs --allow-stale",
     "data:update": "node scripts/update-calfire.mjs",
     "test:data": "node --test scripts/lib/calfire*.test.mjs",
-    "test:gis": "node --test scripts/lib/fire-tools.test.mjs scripts/lib/map-symbols.test.mjs"
+    "test:gis": "node --test scripts/lib/fire-tools.test.mjs scripts/lib/map-symbols.test.mjs scripts/lib/scene-config.test.mjs"
   },
   "dependencies": {
     "@arcgis/core": "^4.34.8",

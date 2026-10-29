@@ -3,7 +3,7 @@ test("closes and reopens panels with tools on the right and no historic legend",
   page,
 }) => {
   await page.setViewportSize({ width: 1600, height: 1000 });
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });
@@ -49,7 +49,7 @@ test("clicking a fire zooms to it and preserves its popup", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 45000,
   });

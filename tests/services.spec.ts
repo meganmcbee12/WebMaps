@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 test("loads the real public NIFC feature service and satellite tiles", async ({
   page,
 }) => {
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible({
     timeout: 30000,
   });
@@ -39,7 +39,7 @@ test("shows USA Wildfires by default and requests its feature data", async ({
       r.url().includes("USA_Wildfires_v1/FeatureServer/0/query?") &&
       r.status() === 200,
   );
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await expect(
@@ -67,7 +67,7 @@ test("shows USA Wildfires by default and requests its feature data", async ({
 test("uses live California geocoding, NOAA smoke, modeled AQI and wind", async ({
   page,
 }) => {
-  await page.goto("/map");
+  await page.goto("/map?view=2d");
   await expect(page.getByText("EXPLORER READY")).toBeVisible();
   await page.getByLabel("Town or street address").fill("Sacramento");
   await page.getByRole("button", { name: "Search places" }).click();
