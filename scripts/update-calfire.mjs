@@ -1,8 +1,12 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { parseCalFireSummary, SOURCE_URL } from "./lib/calfire.mjs";
+import {
+  fetchCalFireSummary,
+  saveCalFireSummary,
+} from "./lib/calfire-refresh.mjs";
 const path = new URL("../public/data/calfire-summary.json", import.meta.url);
 try {
-  let html;
+  let result;
   if (process.argv.includes("--browser")) {
     const { chromium } = await import("@playwright/test");
     const browser = await chromium.launch({ headless: true });
@@ -19,28 +23,30 @@ try {
         .first()
         .scrollIntoViewIfNeeded({ timeout: 20000 });
       await page.waitForTimeout(8000);
-      html = await page.content();
+      result = parseCalFireSummary(await page.content());
     } finally {
       await browser.close();
     }
   } else {
-    const response = await fetch(SOURCE_URL, {
-      headers: {
-        Accept: "text/html",
-        "User-Agent": "FireAtlas/1.0 (public CAL FIRE summary; daily refresh)",
-      },
-      signal: AbortSignal.timeout(25000),
+    result = await fetchCalFireSummary({
+      onRetry: (error, attempt, attempts) =>
+        console.warn(
+          `CAL FIRE attempt ${attempt}/${attempts} failed: ${error.message}. Retrying…`,
+        ),
     });
-    if (!response.ok)
-      throw new Error(`CAL FIRE returned HTTP ${response.status}`);
-    html = await response.text();
   }
-  const result = parseCalFireSummary(html);
-  await mkdir(new URL("../public/data/", import.meta.url), { recursive: true });
-  await writeFile(path, JSON.stringify(result, null, 2) + "\n");
+  await saveCalFireSummary(path, result);
+  console.log(`Verified CAL FIRE metrics: ${JSON.stringify(result.metrics)}`);
   console.log(`CAL FIRE figures verified and saved at ${result.fetchedAt}`);
 } catch (error) {
   console.error(`CAL FIRE refresh failed: ${error.message}`);
+  if (process.env.GITHUB_ACTIONS) {
+    const message = String(error.message)
+      .replaceAll("%", "%25")
+      .replaceAll("\r", "%0D")
+      .replaceAll("\n", "%0A");
+    console.error(`::error title=CAL FIRE refresh failed::${message}`);
+  }
   let previous;
   try {
     previous = JSON.parse(await readFile(path, "utf8"));

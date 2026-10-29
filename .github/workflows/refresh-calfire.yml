@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "scripts/lib/calfire.mjs"
+      - "scripts/lib/calfire*.mjs"
       - "scripts/update-calfire.mjs"
       - ".github/workflows/refresh-calfire.yml"
   schedule:
@@ -16,18 +16,19 @@ concurrency:
   cancel-in-progress: false
 jobs:
   refresh:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
       - run: npm ci --no-audit --no-fund
-      - name: Install browser for CAL FIRE’s rendered counters
-        run: npx playwright install --with-deps chromium
+      - name: Test CAL FIRE extraction and refresh safety
+        run: npm run test:data
       - name: Fetch and validate CAL FIRE figures
-        run: npm run data:update -- --browser
+        run: npm run data:update
       - name: Save verified daily snapshot
         run: |
           if ! git diff --quiet -- public/data/calfire-summary.json; then
