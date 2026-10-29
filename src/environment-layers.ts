@@ -141,6 +141,41 @@ export function createEnvironmentLayers() {
     title: "Selected reported perimeter",
     listMode: "hide",
   });
+  let animatedBoundary = false;
+  let animationTimer: ReturnType<typeof setInterval> | undefined;
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  function updateBoundaryStyle() {
+    const motion = animatedBoundary && !reducedMotion.matches;
+    const phase = motion ? (Math.sin(Date.now() / 230) + 1) / 2 : 0;
+    const outline = {
+      color: motion ? [255, Math.round(90 + 150 * phase), 35, 1] : sceneMode ? "#ffad50" : "#b30824",
+      width: motion ? 2.5 + phase * 2 : sceneMode ? 2.5 : 1.7,
+    };
+    perimeters.renderer = {
+      type: "simple",
+      symbol: { type: "simple-fill", color: sceneMode ? [139, 48, 23, 0.2] : [179, 8, 36, 0.1], outline },
+    };
+    selection.graphics.forEach((graphic) => {
+      if (graphic.geometry?.type === "polygon") graphic.symbol = new SimpleFillSymbol({
+        color: [179, 8, 36, 0.18], outline,
+      });
+    });
+  }
+  function setBoundaryAnimation(enabled: boolean) {
+    animatedBoundary = enabled;
+    if (animationTimer) clearInterval(animationTimer);
+    animationTimer = undefined;
+    updateBoundaryStyle();
+    if (enabled && !reducedMotion.matches) animationTimer = setInterval(() => {
+      if (!document.hidden && (perimeters.visible || selection.graphics.length)) updateBoundaryStyle();
+    }, 180);
+  }
+  const motionChange = () => setBoundaryAnimation(animatedBoundary);
+  reducedMotion.addEventListener("change", motionChange);
+  function dispose() {
+    if (animationTimer) clearInterval(animationTimer);
+    reducedMotion.removeEventListener("change", motionChange);
+  }
   let samples: Promise<Conditions[]> | null = null,
     at = 0;
   async function fillSamples(kind: "air" | "wind") {
@@ -326,17 +361,7 @@ export function createEnvironmentLayers() {
         );
     });
     smoke.renderer = smokeRenderer(enabled ? "shaded" : symbolStyles.smoke);
-    perimeters.renderer = {
-      type: "simple",
-      symbol: {
-        type: "simple-fill",
-        color: enabled ? [139, 48, 23, 0.2] : [179, 8, 36, 0.1],
-        outline: {
-          color: enabled ? "#ffad50" : "#b30824",
-          width: enabled ? 2.5 : 1.7,
-        },
-      },
-    };
+    updateBoundaryStyle();
     for (const layer of [analysis, selection])
       layer.elevationInfo = { mode: "on-the-ground" };
     air.elevationInfo = { mode: "relative-to-ground" };
@@ -404,6 +429,9 @@ export function createEnvironmentLayers() {
   }
   return {
     symbolStyles,
+    setBoundaryAnimation,
+    get boundaryAnimated() { return animatedBoundary; },
+    dispose,
     setSceneMode,
     setSymbolStyle,
     smoke,

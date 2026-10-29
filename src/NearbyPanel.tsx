@@ -56,6 +56,7 @@ export default function NearbyPanel({
   scene?: boolean;
   chooseTool: (mode: string) => Promise<void>;
 }) {
+  const [boundaryAnimated, setBoundaryAnimated] = useState(gis.environment.boundaryAnimated);
   const [symbolStyles, setSymbolStyles] = useState({
     ...gis.environment.symbolStyles,
   });
@@ -285,13 +286,7 @@ export default function NearbyPanel({
         }),
       );
     }
-    await gis.view
-      .goTo(
-        fire.boundary
-          ? geometry.extent!.expand(1.4)
-          : { target: geometry, zoom: 12 },
-      )
-      .catch(() => {});
+    await gis.panToFire(geometry).catch(() => {});
     await gis.view.openPopup({
       features: [
         new Graphic({
@@ -357,6 +352,19 @@ export default function NearbyPanel({
       <p className="nearby-intro">
         Find reported fires near a California address or town.
       </p>
+      <label className="boundary-motion-control">
+        Perimeter boundary style
+        <select aria-label="Perimeter boundary style" value={boundaryAnimated ? "animated" : "static"}
+          onChange={(event) => {
+            const enabled = event.target.value === "animated";
+            gis.environment.setBoundaryAnimation(enabled);
+            setBoundaryAnimated(enabled);
+          }}>
+          <option value="static">Static outline</option>
+          <option value="animated">Flickering fire glow</option>
+        </select>
+        <small>Decorative glow along reported boundaries, not observed spread. Reduced-motion settings use a static outline.</small>
+      </label>
       <MapSymbolControls
         styles={effectiveStyles}
         scene={scene}

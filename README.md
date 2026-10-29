@@ -39,6 +39,12 @@ The **Nearby** tab opens by default on the map in both 2D and 3D. Search for a C
 
 Run `npm run test:gis` with Node 24 to test distance calculations, polygon holes, AQI categories, geocoder filtering, incomplete perimeter responses and model units/missing values. `tests/nearby.spec.ts` exercises the panel with intercepted provider responses; fixture tests do not establish live provider uptime.
 
+## Fire boundary motion and view distances
+
+In the Nearby pane, **Perimeter boundary style** offers a static outline or **Flickering fire glow**. The orange/gold animation decorates the published boundary; it does not show observed flames, spread direction, speed or a forecast. Reduced-motion preferences keep the outline static. Animation pauses in hidden browser tabs and is cleaned up with the map.
+
+Select a fire on the map or in the nearby results, then open **Pan to selected fire** above the map. **Close**, **Surroundings** and **Regional** recenter the selected fire at progressively wider distances in either 2D or 3D. Polygon views account for the whole published footprint; point-only incidents use fixed map scales. The last chosen distance also applies to the next fire selected.
+
 ## 3D satellite terrain
 
 `/map` now opens in an angled **3D terrain** view of California's San Gabriel Mountains, inspired by a satellite terrain workspace. It uses the ArcGIS SceneView, public Esri World Imagery, and the public [WorldElevation3D Terrain3D service](https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer). No paid API key is required for these initial services. Satellite image acquisition dates and terrain detail depend on the providers; imagery is not a live wildfire feed.

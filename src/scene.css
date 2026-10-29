@@ -241,3 +241,26 @@
 .map-bottom > span:first-child {
   font-size: 10px;
 }
+
+.boundary-motion-control {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid #e2cdb6;
+  border-radius: 10px;
+  background: #fff6e9;
+  color: #713b22;
+  font-size: 17px;
+}
+.boundary-motion-control select {
+  width: 100%;
+  padding: 10px;
+  font: inherit;
+  color: #713b22;
+  background: white;
+  border: 1px solid #d8b895;
+  border-radius: 6px;
+}
+.boundary-motion-control small { font-size: 13px; line-height: 1.6; }
+.fire-pan-controls .camera-actions { flex-wrap: wrap; }

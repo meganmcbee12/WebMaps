@@ -476,6 +476,22 @@ export function createGIS(
     environment.setSymbolStyle(layer, style);
     if (layer === "fire") applyFireSymbols();
   }
+  let selectedFireGeometry: __esri.Geometry | null = null;
+  let fireView: "close" | "area" | "regional" = "close";
+  async function panToFire(geometry?: __esri.Geometry, level = fireView) {
+    if (geometry) selectedFireGeometry = geometry;
+    fireView = level;
+    if (!selectedFireGeometry) return false;
+    const target = selectedFireGeometry;
+    const extent = target.extent;
+    const scale = { close: 24000, area: 150000, regional: 650000 }[level];
+    if (target.type === "point") await active.goTo({ target, scale });
+    else if (extent) {
+      await active.goTo(extent.expand({ close: 1.4, area: 3, regional: 8 }[level]));
+      if (active.scale < scale) await active.goTo({ target: extent.center, scale });
+    }
+    return true;
+  }
   return {
     map,
     get view() {
@@ -498,6 +514,7 @@ export function createGIS(
     get basemapError() {
       return basemapError;
     },
+    panToFire,
     initialize,
     switchView,
     on,
@@ -516,6 +533,7 @@ export function createGIS(
     tool,
     clearTool,
     destroy() {
+      environment.dispose();
       clearTool();
       sketch.destroy();
       measurement.destroy();

@@ -164,12 +164,7 @@ export default function App() {
         const feature = hit.graphic.clone();
         feature.popupTemplate = hit.graphic.getEffectivePopupTemplate(true);
         instance.view.closePopup();
-        if (isFire)
-          await instance.view.goTo(
-            geometry.type === "point"
-              ? { target: geometry, zoom: Math.max(instance.view.zoom, 12) }
-              : geometry.extent?.expand(1.5) || geometry,
-          );
+        if (isFire) await instance.panToFire(geometry);
         if (!instance.view.destroyed)
           await instance.view.openPopup({
             features: [feature],
@@ -641,6 +636,21 @@ export default function App() {
                 3D terrain
               </button>
             </div>
+            <details className="scene-camera fire-pan-controls">
+              <summary><Flame size={16} /> Pan to selected fire</summary>
+              <div>
+                <p>Click a fire on the map or in the nearby list, then choose a view.</p>
+                <div className="camera-actions">
+                  {(["close", "area", "regional"] as const).map((level) => (
+                    <button key={level} disabled={!ready || viewChanging} onClick={() => {
+                      void gis.current?.panToFire(undefined, level).then((found) => {
+                        if (!found) setViewNotice("Select a fire on the map or in the nearby list first.");
+                      }).catch(() => setViewNotice("Could not move to this fire. Please try again."));
+                    }}>{level === "close" ? "Close" : level === "area" ? "Surroundings" : "Regional"}</button>
+                  ))}
+                </div>
+              </div>
+            </details>
             {viewMode === "3d" && (
               <details className="scene-camera">
                 <summary>

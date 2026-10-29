@@ -205,6 +205,16 @@ test("changes dataset symbols in place, updates legends and resets defaults", as
   await expect(page.getByText(/Blue arrows point where/)).toBeVisible();
   await page.getByText("Map symbols", { exact: true }).scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/symbols-controls.png" });
+  await page.getByLabel("Perimeter boundary style").selectOption("animated");
+  await expect(page.getByLabel("Perimeter boundary style")).toHaveValue("animated");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await expect(page.getByText(/Decorative glow along reported boundaries/)).toBeVisible();
+  await page.getByLabel("Perimeter boundary style").selectOption("static");
+  await page.getByText("Pan to selected fire", { exact: true }).click();
+  for (const name of ["Close", "Surroundings", "Regional"]) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Select a fire" })).toBeVisible();
+  }
   await page.setViewportSize({ width: 390, height: 844 });
   await page
     .getByLabel("Wind symbols", { exact: true })
