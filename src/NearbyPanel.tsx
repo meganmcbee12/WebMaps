@@ -4,6 +4,7 @@ import {
   LocateFixed,
   Flame,
   CloudFog,
+  Gauge,
   Wind,
   MapPin,
   ArrowUpRight,
@@ -22,6 +23,14 @@ import {
   type NearbyFire,
   type Conditions,
 } from "./place-data";
+import MapSymbolControls from "./MapSymbolControls";
+import {
+  fireMarker,
+  symbolPreview,
+  smokeTile,
+  SMOKE_COLORS,
+  type SymbolLayer,
+} from "./map-symbols";
 import "./nearby.css";
 type GIS = ReturnType<typeof createGIS>;
 const date = (value: string | null) =>
@@ -44,6 +53,13 @@ export default function NearbyPanel({
   gis: GIS;
   chooseTool: (mode: string) => Promise<void>;
 }) {
+  const [symbolStyles, setSymbolStyles] = useState({
+    ...gis.environment.symbolStyles,
+  });
+  function changeSymbols(layer: SymbolLayer, style: string) {
+    gis.setSymbolStyle(layer, style);
+    setSymbolStyles((previous) => ({ ...previous, [layer]: style }));
+  }
   const [query, setQuery] = useState(""),
     [matches, setMatches] = useState<Place[]>([]),
     [searching, setSearching] = useState(false),
@@ -248,12 +264,7 @@ export default function NearbyPanel({
       gis.environment.selection.add(
         new Graphic({
           geometry,
-          symbol: {
-            type: "simple-marker",
-            size: 17,
-            color: "#b30824",
-            outline: { color: "white", width: 2 },
-          },
+          symbol: fireMarker(gis.environment.symbolStyles.fire),
         }),
       );
     }
@@ -328,6 +339,12 @@ export default function NearbyPanel({
       <h2>Around your place</h2>
       <p className="nearby-intro">
         Find reported fires near a California address or town.
+      </p>
+      <MapSymbolControls styles={symbolStyles} onChange={changeSymbols} />
+      <p className="fire-symbol-key">
+        <img src={symbolPreview("fire", symbolStyles.fire)} alt="" /> Reported
+        fire location <span className="perimeter-symbol-key" /> Reported
+        boundary
       </p>
       <form onSubmit={search} className="place-form">
         <label htmlFor="place-query">Town or street address</label>
@@ -474,7 +491,9 @@ export default function NearbyPanel({
             <h3>Conditions at this place</h3>
           </div>
           <div className="condition-card">
-            <span>MODELED AIR QUALITY</span>
+            <span>
+              <Gauge size={16} /> MODELED AIR QUALITY
+            </span>
             <strong style={{ color: category.color }}>
               {conditionBusy
                 ? "Loading…"
@@ -498,7 +517,9 @@ export default function NearbyPanel({
             </p>
           </div>
           <div className="condition-card">
-            <span>MODELED WIND · 10 METERS</span>
+            <span>
+              <Wind size={16} /> MODELED WIND · 10 METERS
+            </span>
             <strong>
               {conditionBusy
                 ? "Loading…"
@@ -525,7 +546,9 @@ export default function NearbyPanel({
             </p>
           </div>
           <div className="condition-card">
-            <span>SATELLITE-OBSERVED SMOKE</span>
+            <span>
+              <CloudFog size={16} /> SATELLITE-OBSERVED SMOKE
+            </span>
             <strong>
               {smoke ? smoke.density : smokeError ? "Unavailable" : "Checking…"}
             </strong>
@@ -557,21 +580,25 @@ export default function NearbyPanel({
         {[
           {
             key: "perimeters",
+            Icon: Flame,
             title: "Reported fire perimeters",
             note: "NIFC / WFIGS · reported boundaries",
           },
           {
             key: "smoke",
+            Icon: CloudFog,
             title: "Satellite smoke",
             note: "NOAA HMS · observed plumes aloft",
           },
           {
             key: "air",
+            Icon: Gauge,
             title: "Air quality",
             note: "Modeled US AQI · city-center samples",
           },
           {
             key: "wind",
+            Icon: Wind,
             title: "Wind",
             note: "Modeled 10 m wind · city-center samples",
           },
@@ -585,7 +612,10 @@ export default function NearbyPanel({
                 onChange={() => void toggleLayer(item.key as LayerKey)}
               />
               <span>
-                <strong>{item.title}</strong>
+                <strong>
+                  <item.Icon size={16} />
+                  {item.title}
+                </strong>
                 <small>{item.note}</small>
               </span>
             </label>
@@ -598,12 +628,34 @@ export default function NearbyPanel({
         ))}
       </div>
       {visible.smoke && (
-        <p className="environment-key smoke-key">
-          <span />
-          Light <span />
-          Medium <span />
-          Heavy
-        </p>
+        <div
+          className="environment-key smoke-key"
+          aria-label="Smoke density legend"
+        >
+          {(["Light", "Medium", "Heavy"] as const).map((density) => (
+            <span key={density} className="smoke-swatch">
+              <span
+                style={
+                  symbolStyles.smoke === "clouds"
+                    ? {
+                        backgroundImage: `url("${smokeTile(density)}")`,
+                        backgroundSize: "32px 32px",
+                      }
+                    : {
+                        background: SMOKE_COLORS[density],
+                        opacity:
+                          density === "Light"
+                            ? 0.22
+                            : density === "Medium"
+                              ? 0.4
+                              : 0.58,
+                      }
+                }
+              />
+              {density}
+            </span>
+          ))}
+        </div>
       )}
       {visible.air && (
         <div className="environment-key aqi-key">
@@ -628,13 +680,16 @@ export default function NearbyPanel({
       )}
       {visible.wind && (
         <p className="nearby-muted">
-          Blue arrows point where the wind is blowing; size increases with
-          speed. Select a sample for details.
+          {symbolStyles.wind === "arrows"
+            ? "Blue arrows point where the wind is blowing; larger arrows mean stronger wind."
+            : "Wind badges show rounded speed in mph; the small arrow points where the wind is blowing."}{" "}
+          An open circle means less than 1 mph. Select a sample for details.
         </p>
       )}
       <p className="nearby-muted">
-        Air and wind layers are samples at {13} city centers, not continuous
-        coverage. Layers load on demand; toggle to refresh after 15 minutes.
+        Air and wind symbols represent modeled samples at {13} city centers, not
+        continuous coverage. Air and wind symbols sit side by side to keep both
+        visible. Layers load on demand; toggle to refresh after 15 minutes.
       </p>
       <div className="nearby-credits">
         <a

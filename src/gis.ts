@@ -1,3 +1,9 @@
+import SimpleRenderer from "@arcgis/core/renderers/SimpleRenderer";
+import {
+  fireMarker,
+  DEFAULT_SYMBOL_STYLES,
+  type SymbolLayer,
+} from "./map-symbols";
 import esriConfig from "@arcgis/core/config";
 esriConfig.assetsPath = "/arcgis-assets";
 import Map from "@arcgis/core/Map";
@@ -69,15 +75,9 @@ export function createGIS(container: HTMLDivElement) {
     url: `${location.origin}/data/california-fires.geojson`,
     title: "Historic fire reference points",
     visible: false,
-    renderer: {
-      type: "simple",
-      symbol: {
-        type: "simple-marker",
-        size: 13,
-        color: "#ed764b",
-        outline: { color: "#fff0d7", width: 2 },
-      },
-    } as any,
+    renderer: new SimpleRenderer({
+      symbol: fireMarker(DEFAULT_SYMBOL_STYLES.fire),
+    }),
     popupTemplate: {
       title: "{name} · {year}",
       content: [
@@ -99,6 +99,9 @@ export function createGIS(container: HTMLDivElement) {
   const usaWildfires = new FeatureLayer({
     url: usaWildfiresService,
     title: "USA Wildfires",
+    renderer: new SimpleRenderer({
+      symbol: fireMarker(DEFAULT_SYMBOL_STYLES.fire),
+    }),
     visible: true,
     outFields: ["*"],
     refreshInterval: 5,
@@ -197,6 +200,17 @@ export function createGIS(container: HTMLDivElement) {
       );
     }
   }
+  function setSymbolStyle(layer: SymbolLayer, style: string) {
+    environment.setSymbolStyle(layer, style);
+    if (layer === "fire") {
+      usaWildfires.renderer = new SimpleRenderer({ symbol: fireMarker(style) });
+      fires.renderer = new SimpleRenderer({ symbol: fireMarker(style) });
+      environment.selection.graphics.forEach((graphic) => {
+        if (graphic.geometry?.type === "point")
+          graphic.set("symbol", fireMarker(style));
+      });
+    }
+  }
   return {
     map,
     view,
@@ -204,6 +218,7 @@ export function createGIS(container: HTMLDivElement) {
     usaWildfires,
     drawings,
     environment,
+    setSymbolStyle,
     tool,
     clearTool,
     destroy() {

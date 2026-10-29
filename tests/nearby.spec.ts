@@ -315,5 +315,10 @@ test("includes fires without perimeters and opens their location-distance popup"
   await expect(page.locator(".esri-popup")).toContainText(
     "Footprint not determined from a point",
   );
+  await page.getByText("Map symbols", { exact: true }).click();
+  await page.getByLabel("Fire symbols", { exact: true }).selectOption("points");
+  await expect(page.locator(".esri-popup")).toContainText(
+    "Approx. distance to reported location",
+  );
   await page.screenshot({ path: "test-results/nearby-location-fallback.png" });
 });

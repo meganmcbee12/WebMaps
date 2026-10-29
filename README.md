@@ -15,7 +15,7 @@ Open `http://localhost:5173` in a browser on your own computer. In a remote deve
 
 ## Explore
 
-- **USA Wildfires** is visible automatically on opening the map, using [this public feature layer](https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0). Its original service symbology is retained, its attributes are available in popups, and it refreshes every five minutes. Coverage and freshness are determined by the provider. The map still opens on California; zoom out to explore the national data.
+- **USA Wildfires** is visible automatically on opening the map, using [this public feature layer](https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USA_Wildfires_v1/FeatureServer/0). Flame icons identify reported incident locations (they do not encode containment); simple circles are also available. Its original attributes are available in popups, and it refreshes every five minutes. Coverage and freshness are determined by the provider. The map still opens on California; zoom out to explore the national data.
 - Pan, zoom, and switch Streets (OpenStreetMap), Satellite, or Terrain basemaps.
 - Close the sidebar, tools, or basemap chooser with their **X** buttons; use the Layers, Tools, or Basemaps buttons to reopen them. Tools sit at the upper right; closing them returns the map to Explore mode.
 - Toggle layers in the sidebar; add public ArcGIS layer URLs ending in `/FeatureServer/<number>`, a public GeoJSON URL, or a local GeoJSON file. Remote services must permit anonymous access and CORS; additional cloud network domains may need approval.
@@ -38,6 +38,17 @@ The **Nearby** tab opens by default on the map. Search for a California town or 
 - Town search uses GeoNames through Open-Meteo. Full street addresses use the US Census Geocoder through `/api/geocode`, a small same-origin server endpoint. Searches go to the relevant provider; the application does not store search history or cache address responses. Picking a point requires no geocoding provider.
 
 Run `npm run test:gis` with Node 24 to test distance calculations, polygon holes, AQI categories, geocoder filtering, incomplete perimeter responses and model units/missing values. `tests/nearby.spec.ts` exercises the panel with intercepted provider responses; fixture tests do not establish live provider uptime.
+
+## Map symbol options
+
+Open **Nearby → Map symbols** to change the display without reloading the map or fetching new samples:
+
+- **Fire:** flame icons (default) or simple circles, for the provided USA Wildfires layer and the optional historic reference points. Symbol colors identify the dataset; consult popups for incident attributes.
+- **Smoke:** cloud-patterned plumes (default) or shaded gray plume areas. Both retain NOAA polygon geometry and distinguish Light, Medium and Heavy density. Pattern clouds are a fill texture, not observation stations or surface AQI readings.
+- **Air quality:** lungs badges with the rounded US AQI number (default) or color circles. Colors and category names follow the displayed integer AQI.
+- **Wind:** direction arrows (default) or wind-icon badges with rounded mph. Arrows point toward where the wind is blowing, while popups retain the meteorological direction FROM. Less than 1 mph uses an open calm circle. Air and wind markers are offset slightly so both remain visible at a city sample.
+
+The legends change with the chosen style. Previews use example values; map samples use provider data. Choices last for the session; **Reset symbols** restores defaults. Custom symbols are local SVGs and require no extra service or API key.
 
 ## Data and interpretation
 

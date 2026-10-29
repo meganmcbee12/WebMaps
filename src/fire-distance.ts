@@ -60,15 +60,16 @@ export function perimeterDistance(point: Coordinate, rings: number[][][]) {
 export function aqiCategory(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value) || value < 0)
     return { label: "Unavailable", color: "#777777" };
-  return value <= 50
+  const index = Math.round(value);
+  return index <= 50
     ? { label: "Good", color: "#218343" }
-    : value <= 100
+    : index <= 100
       ? { label: "Moderate", color: "#a37b00" }
-      : value <= 150
+      : index <= 150
         ? { label: "Unhealthy for sensitive groups", color: "#c86717" }
-        : value <= 200
+        : index <= 200
           ? { label: "Unhealthy", color: "#b51b2d" }
-          : value <= 300
+          : index <= 300
             ? { label: "Very unhealthy", color: "#774181" }
             : { label: "Hazardous", color: "#7e1839" };
 }

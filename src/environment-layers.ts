@@ -3,6 +3,16 @@ import FeatureLayer from "@arcgis/core/layers/FeatureLayer";
 import Graphic from "@arcgis/core/Graphic";
 import Point from "@arcgis/core/geometry/Point";
 import Polygon from "@arcgis/core/geometry/Polygon";
+import PictureFillSymbol from "@arcgis/core/symbols/PictureFillSymbol";
+import {
+  DEFAULT_SYMBOL_STYLES,
+  SYMBOL_OPTIONS,
+  SMOKE_COLORS,
+  airMarker,
+  windMarker,
+  smokeTile,
+  type SymbolLayer,
+} from "./map-symbols";
 import SimpleFillSymbol from "@arcgis/core/symbols/SimpleFillSymbol";
 import UniqueValueRenderer from "@arcgis/core/renderers/UniqueValueRenderer";
 import { fireService, SMOKE_URL } from "./sources";
@@ -15,7 +25,36 @@ import {
   type Boundary,
   type Conditions,
 } from "./place-data";
+function smokeRenderer(style: string) {
+  return new UniqueValueRenderer({
+    field: "Density",
+    uniqueValueInfos: (["Light", "Medium", "Heavy"] as const).map(
+      (density) => ({
+        value: density,
+        label: density,
+        symbol:
+          style === "clouds"
+            ? new PictureFillSymbol({
+                url: smokeTile(density),
+                width: 36,
+                height: 36,
+                outline: { color: SMOKE_COLORS[density], width: 0.8 },
+              })
+            : new SimpleFillSymbol({
+                color:
+                  density === "Light"
+                    ? [148, 163, 184, 0.22]
+                    : density === "Medium"
+                      ? [100, 116, 139, 0.4]
+                      : [51, 65, 85, 0.58],
+                outline: { color: SMOKE_COLORS[density], width: 0.8 },
+              }),
+      }),
+    ),
+  });
+}
 export function createEnvironmentLayers() {
+  const symbolStyles = { ...DEFAULT_SYMBOL_STYLES };
   const smoke = new FeatureLayer({
     id: "noaa-smoke",
     url: SMOKE_URL,
@@ -23,21 +62,7 @@ export function createEnvironmentLayers() {
     visible: false,
     outFields: ["*"],
     refreshInterval: 15,
-    renderer: new UniqueValueRenderer({
-      field: "Density",
-      uniqueValueInfos: [
-        ["Light", [255, 218, 111, 0.3]],
-        ["Medium", [232, 160, 62, 0.4]],
-        ["Heavy", [116, 83, 60, 0.55]],
-      ].map(([value, color]) => ({
-        value: String(value),
-        label: String(value),
-        symbol: new SimpleFillSymbol({
-          color: color as number[],
-          outline: { color: [111, 82, 42, 0.5], width: 0.7 },
-        }),
-      })),
-    }),
+    renderer: smokeRenderer(DEFAULT_SYMBOL_STYLES.smoke),
     popupTemplate: {
       title: "NOAA satellite smoke · {Density}",
       content: [
@@ -133,12 +158,7 @@ export function createEnvironmentLayers() {
               longitude: p.longitude,
               latitude: p.latitude,
             }),
-            symbol: {
-              type: "simple-marker",
-              size: 19,
-              color: category.color,
-              outline: { color: "white", width: 2 },
-            },
+            symbol: airMarker(value.aqi, symbolStyles.air),
             attributes: {
               name: p.name,
               aqi: Math.round(value.aqi),
@@ -179,17 +199,11 @@ export function createEnvironmentLayers() {
               longitude: p.longitude,
               latitude: p.latitude,
             }),
-            symbol: {
-              type: "simple-marker",
-              style: "triangle",
-              size: 14 + Math.min(value.speed, 35) / 3,
-              angle: (value.direction + 180) % 360,
-              color: "#234d73",
-              outline: { color: "white", width: 1.5 },
-            },
+            symbol: windMarker(value.speed, value.direction, symbolStyles.wind),
             attributes: {
               name: p.name,
               speed: value.speed,
+              direction: value.direction,
               gust: value.gust ?? "Unavailable",
               from: `${compass(value.direction)} (${Math.round(value.direction)}°)`,
               time: value.windTime,
@@ -228,6 +242,27 @@ export function createEnvironmentLayers() {
       count: graphics.length,
       partial: graphics.length < SAMPLE_PLACES.length,
     };
+  }
+  function setSymbolStyle(layer: SymbolLayer, style: string) {
+    if (!SYMBOL_OPTIONS[layer].some((option) => option.value === style))
+      throw Error("Unknown symbol style");
+    symbolStyles[layer] = style;
+    if (layer === "smoke") smoke.renderer = smokeRenderer(style);
+    if (layer === "air")
+      air.graphics.forEach((graphic) =>
+        graphic.set("symbol", airMarker(graphic.attributes.aqi, style)),
+      );
+    if (layer === "wind")
+      wind.graphics.forEach((graphic) =>
+        graphic.set(
+          "symbol",
+          windMarker(
+            graphic.attributes.speed,
+            graphic.attributes.direction,
+            style,
+          ),
+        ),
+      );
   }
   async function markPlace(place: Place, radius: number, signal?: AbortSignal) {
     const point = new Point({
@@ -281,6 +316,8 @@ export function createEnvironmentLayers() {
     return geometry;
   }
   return {
+    symbolStyles,
+    setSymbolStyle,
     smoke,
     perimeters,
     air,

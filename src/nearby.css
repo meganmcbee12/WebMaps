@@ -314,19 +314,6 @@
   color: #707761;
   margin-top: 12px;
 }
-.smoke-key span {
-  width: 13px;
-  height: 13px;
-  background: #ffda6f;
-  display: inline-block;
-  margin-left: 5px;
-}
-.smoke-key span:nth-of-type(2) {
-  background: #e8a03e;
-}
-.smoke-key span:nth-of-type(3) {
-  background: #74533c;
-}
 .aqi-key > span {
   padding-left: 5px;
   margin: 3px 5px 3px 0;
@@ -375,4 +362,142 @@
     font-size: 12px;
     gap: 6px;
   }
+}
+.map-symbol-controls {
+  margin: 16px 0;
+  border: 1px solid #ded8cb;
+  border-radius: 8px;
+  background: #fffdfa;
+  color: #303133;
+}
+.map-symbol-controls summary {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 650;
+  list-style: none;
+}
+.map-symbol-controls summary::-webkit-details-marker {
+  display: none;
+}
+.map-symbol-controls summary:after {
+  content: "+";
+  font-size: 21px;
+  margin-left: auto;
+  color: #9d1730;
+}
+.map-symbol-controls[open] summary:after {
+  content: "−";
+}
+.map-symbol-controls summary > small {
+  font-size: 12px;
+  font-weight: 400;
+  color: #74716a;
+}
+.map-symbol-controls > div {
+  padding: 0 13px 14px;
+}
+.map-symbol-controls p {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6e716a;
+  margin: 0 0 10px;
+}
+.map-symbol-controls label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid #ece7dd;
+}
+.map-symbol-controls label > img {
+  width: 38px;
+  height: 42px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.map-symbol-controls label > span {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.map-symbol-controls select {
+  display: block;
+  width: 100%;
+  font-size: 14px;
+  color: #303133;
+  padding: 8px 4px;
+  background: white;
+  border: 1px solid #d8d2c7;
+  border-radius: 5px;
+  margin-top: 5px;
+}
+.map-symbol-controls > div > small {
+  display: block;
+  font-size: 12px;
+  color: #75766c;
+  line-height: 1.6;
+  margin-top: 9px;
+}
+.reset-symbols {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 9px 0;
+  background: none;
+  font-size: 13px;
+  color: #9d1730;
+}
+.fire-symbol-key {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 12px;
+  color: #66695f;
+  line-height: 1.7;
+  margin: 10px 0 18px;
+}
+.fire-symbol-key > img {
+  width: 23px;
+  height: 23px;
+  object-fit: contain;
+}
+.perimeter-symbol-key {
+  width: 18px;
+  height: 12px;
+  border: 2px solid #b30824;
+  background: #b3082419;
+  display: inline-block;
+  margin-left: 6px;
+}
+.condition-card > span,
+.environment-options strong {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.environment-options strong > svg {
+  flex-shrink: 0;
+}
+.smoke-key > .smoke-swatch {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  background: none;
+  width: auto;
+  height: auto;
+}
+.smoke-swatch > span {
+  width: 32px;
+  height: 28px;
+  display: inline-block;
+  margin: 0;
+  border: 1px solid #c4c8cc;
+  border-radius: 4px;
 }
