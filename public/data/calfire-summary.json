@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "sourceUrl": "https://www.fire.ca.gov/incidents",
-  "fetchedAt": "2026-11-07T15:23:52.606Z",
+  "fetchedAt": "2026-11-08T15:22:46.989Z",
   "reportingPeriod": "Statewide figures as reported by CAL FIRE",
   "metrics": {
     "emergencyResponses": 521017,
