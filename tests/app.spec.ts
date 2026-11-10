@@ -37,7 +37,7 @@ test("loads map, explores fires, changes basemaps and manages imported GeoJSON",
   await page.getByLabel("Explore features").click();
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await page.getByRole("button", { name: "Add a data layer" }).click();
-  await page.locator("input[type=file]").setInputFiles({
+  await page.getByRole("dialog").locator("input[type=file]").setInputFiles({
     name: "test.geojson",
     mimeType: "application/geo+json",
     buffer: Buffer.from(
@@ -69,7 +69,7 @@ test("mobile sidebar and invalid import feedback", async ({ page }) => {
   await page.getByLabel("Open sidebar").click();
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await page.getByRole("button", { name: "Add a data layer" }).click();
-  await page.locator("input[type=file]").setInputFiles({
+  await page.getByRole("dialog").locator("input[type=file]").setInputFiles({
     name: "bad.json",
     mimeType: "application/json",
     buffer: Buffer.from("{broken"),

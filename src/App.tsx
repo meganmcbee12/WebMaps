@@ -1,6 +1,8 @@
 import Point from "@arcgis/core/geometry/Point";
 import { useEffect, useRef, useState } from "react";
 import NearbyPanel from "./NearbyPanel";
+import MapMaker from "./MapMaker";
+import { csvPoints } from "./map-maker-data";
 import {
   Flame,
   Layers,
@@ -299,7 +301,9 @@ export default function App() {
   async function upload(file?: File) {
     if (!file) return;
     try {
-      const data = JSON.parse(await file.text());
+      if (file.size > 20e6) throw Error("File too large");
+      const text = await file.text();
+      const data = /\.csv$/i.test(file.name) ? csvPoints(text) : JSON.parse(text);
       if (
         ![
           "FeatureCollection",
@@ -322,8 +326,8 @@ export default function App() {
       } finally {
         URL.revokeObjectURL(blob);
       }
-    } catch {
-      setError("Choose a valid GeoJSON file.");
+    } catch (error) {
+      setError(`Choose a valid GeoJSON or latitude/longitude CSV file. ${error instanceof Error ? error.message : ""}`);
     }
   }
   function toggle(row: Row) {
@@ -417,7 +421,9 @@ export default function App() {
                 <Flame size={16} />
                 Fire explorer
               </button>
+              <button className={tab === "maker" ? "active" : ""} onClick={() => setTab("maker")}><Mountain size={16} /> Map maker</button>
             </div>
+            {ready && gis.current && <div hidden={tab !== "maker"}><MapMaker active={tab === "maker"} gis={gis.current} chooseTool={chooseTool} addData={() => { setModal(true); setError(""); }} /></div>}
             {tab === "layers" ? (
               <>
                 <div className="section-head">
@@ -949,7 +955,7 @@ export default function App() {
             <span className="eyebrow">YOUR DATA, IN CONTEXT</span>
             <h2 id="modal-title">Add a map layer</h2>
             <p>
-              Connect a public ArcGIS feature layer or bring your own GeoJSON.
+              Connect a public ArcGIS feature layer or upload GeoJSON or a latitude/longitude CSV.
             </p>
             <form
               onSubmit={(e) => {
@@ -982,12 +988,12 @@ export default function App() {
             <div className="or">or upload a file</div>
             <label className="upload">
               <Upload size={22} />
-              <strong>Choose a GeoJSON file</strong>
-              <span>.geojson or .json · coordinates in WGS 84</span>
+              <strong>Choose a GeoJSON or CSV file</strong>
+              <span>.geojson, .json or .csv · coordinates in WGS 84</span>
               <input
                 disabled={loading}
                 type="file"
-                accept=".json,.geojson,application/geo+json"
+                accept=".json,.geojson,.csv,application/geo+json,text/csv"
                 onChange={(e) => upload(e.target.files?.[0])}
               />
             </label>

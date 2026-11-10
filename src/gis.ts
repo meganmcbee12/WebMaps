@@ -514,6 +514,11 @@ export function createGIS(
     get basemapError() {
       return basemapError;
     },
+    setCartographicBasemap(basemap: __esri.Basemap) {
+      map.basemap = basemap;
+      basemapError = "";
+      updateModeLayers();
+    },
     panToFire,
     initialize,
     switchView,
