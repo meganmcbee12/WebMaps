@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
   "sourceUrl": "https://www.fire.ca.gov/incidents",
-  "fetchedAt": "2026-11-24T01:56:28.677Z",
+  "fetchedAt": "2026-11-24T23:40:43.388Z",
   "reportingPeriod": "Statewide figures as reported by CAL FIRE",
   "metrics": {
-    "emergencyResponses": 545916,
-    "wildfires": 6580,
-    "acresBurned": 339685,
+    "emergencyResponses": 558749,
+    "wildfires": 6594,
+    "acresBurned": 339688,
     "fatalities": 3,
     "structuresDestroyed": 177
   }
